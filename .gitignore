@@ -1,0 +1,10 @@
+.venv/
+.venv*/
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+.ipynb_checkpoints/
+data/raw/pecbms/*.xlsx
+data/raw/gbif/*.csv
+data/raw/climate/*.csv
