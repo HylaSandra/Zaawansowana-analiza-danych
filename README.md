@@ -51,8 +51,6 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
 - `src/climate_birds/data_sources/climate.py` - indeks klimatu
 - `src/climate_birds/processing.py` - agregacja i łączenie danych
 - `src/climate_birds/statistics.py` - statystyki i testy
-- `docs/report_outline.md` - szkic raportu
-- `docs/presentation_outline.md` - szkic prezentacji
 
 ## Jak uruchomić projekt lokalnie
 
@@ -75,84 +73,6 @@ python scripts/build_dataset.py
 ```powershell
 python -m streamlit run app/dashboard.py
 ```
-
-## Wdrożenie na Render
-
-Repozytorium jest przygotowane pod wdrożenie jako `Render Web Service`:
-
-- `render.yaml` definiuje usługę Render,
-- `.python-version` przypina serię Pythona do `3.11`,
-- aplikacja korzysta z gotowych plików w `data/processed`, więc na Render nie trzeba uruchamiać pipeline'u pobierającego dane z `GBIF` i `Open-Meteo`.
-- mapa obserwacji używa lekkiego pliku `data/processed/occurrence_map_points.csv`; jeśli go brakuje, dashboard awaryjnie próbuje użyć lokalnych plików `data/raw/gbif` albo pobrać punkty dla wybranej dekady z `GBIF`.
-
-Najprostsza ścieżka wdrożenia:
-
-1. Wypchnij repozytorium na GitHub.
-2. Upewnij się, że w repo są również pliki z `data/processed`.
-3. Zaloguj się do Render.
-4. Wybierz `New +` -> `Blueprint`.
-5. Wskaż repozytorium z projektem.
-6. Render wykryje `render.yaml` i utworzy usługę.
-7. Po pierwszym deployu aplikacja będzie dostępna pod adresem `onrender.com`.
-
-Uwaga: na darmowym planie pierwsze otwarcie aplikacji po dłuższej bezczynności może potrwać chwilę, bo usługa bywa usypiana.
-
-Jeśli wolisz utworzyć usługę ręcznie zamiast przez Blueprint, użyj tych samych komend:
-
-- Build Command:
-
-```bash
-pip install -r requirements.txt
-```
-
-- Start Command:
-
-```bash
-python -m streamlit run app/dashboard.py --server.headless=true --server.address=0.0.0.0 --server.port=$PORT
-```
-
-W Render warto też ustawić:
-
-- `Environment`: `Python 3`
-- region: `Frankfurt`
-- zmienna środowiskowa `STREAMLIT_BROWSER_GATHER_USAGE_STATS=false`
-
-## Aktualizacja danych przed kolejnym deployem
-
-Jeśli chcesz odświeżyć dane przed ponownym wdrożeniem:
-
-1. Uruchom lokalnie:
-
-```powershell
-python scripts/build_dataset.py
-```
-
-2. Sprawdź zaktualizowane pliki w `data/processed`.
-3. Dodaj je do commita razem ze zmianami w kodzie.
-4. Wypchnij zmiany na GitHub.
-5. Render wykona redeploy z nowymi wynikami.
-
-## Co pokazać w dashboardzie
-
-- wybór gatunku,
-- wykres indeksu populacji w czasie,
-- wykres liczby zajmowanych pól siatki,
-- wykres przesunięcia środka zasięgu obserwacji,
-- wykres temperatury i odchylenia klimatycznego,
-- wykres zależności między temperaturą a indeksem populacji,
-- tabela z wynikami testów statystycznych,
-- widok `Podsumowanie i wnioski`.
-
-## Jak to wpisać do raportu
-
-Temat pracy jest dobrze zgodny z wymaganiami prowadzącego:
-
-- załadowanie danych do `DataFrame`,
-- pre-processing,
-- analiza wizualna,
-- analiza statystyczna,
-- analiza zaawansowana,
-- podsumowanie i wnioski.
 
 ## Ograniczenia
 
