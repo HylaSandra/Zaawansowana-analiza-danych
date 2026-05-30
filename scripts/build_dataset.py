@@ -17,6 +17,59 @@ from climate_birds.data_sources.gbif import fetch_occurrences, load_occurrences,
 from climate_birds.data_sources.pecbms import download_pecbms_excel, load_population_indices, load_population_trends
 from climate_birds.processing import assemble_species_panel, summarize_occurrences
 
+MAP_PERIODS = {
+    "1980-1989": (1980, 1989),
+    "1990-1999": (1990, 1999),
+    "2000-2009": (2000, 2009),
+    "2010-2019": (2010, 2019),
+    "2020-2024": (2020, 2024),
+}
+MAX_MAP_POINTS = 3500
+MAP_POINT_COLUMNS = [
+    "gbif_id",
+    "decimal_latitude",
+    "decimal_longitude",
+    "country_code",
+    "year",
+    "month",
+    "basis_of_record",
+]
+
+
+def build_map_point_samples(occurrences: pd.DataFrame, scientific_name: str) -> list[pd.DataFrame]:
+    if occurrences.empty:
+        return []
+
+    frame = occurrences.copy()
+    for column in MAP_POINT_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = pd.NA
+
+    for column in ("year", "month", "decimal_latitude", "decimal_longitude"):
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
+    frame = frame.dropna(subset=["year", "decimal_latitude", "decimal_longitude"]).copy()
+    if frame.empty:
+        return []
+
+    frame["year"] = frame["year"].astype(int)
+    frames: list[pd.DataFrame] = []
+
+    for period_label, (start_year, end_year) in MAP_PERIODS.items():
+        period_frame = frame[frame["year"].between(start_year, end_year)].copy()
+        if period_frame.empty:
+            continue
+
+        if len(period_frame) > MAX_MAP_POINTS:
+            period_frame = period_frame.sample(MAX_MAP_POINTS, random_state=42)
+
+        period_frame = period_frame.sort_values("year")[MAP_POINT_COLUMNS].copy()
+        period_frame.insert(0, "period_label", period_label)
+        period_frame.insert(0, "scientific_name", scientific_name)
+        frames.append(period_frame)
+
+    return frames
+
 
 def main() -> None:
     ensure_data_directories()
@@ -40,6 +93,7 @@ def main() -> None:
     http = requests.Session()
     range_frames: list[pd.DataFrame] = []
     panel_frames: list[pd.DataFrame] = []
+    map_point_frames: list[pd.DataFrame] = []
 
     for species in SELECTED_SPECIES.values():
         occurrence_path = RAW_DIR / "gbif" / f"{species.slug}_occurrences.csv"
@@ -54,6 +108,7 @@ def main() -> None:
             save_occurrences(occurrences, occurrence_path)
 
         range_metrics = summarize_occurrences(occurrences)
+        map_point_frames.extend(build_map_point_samples(occurrences, species.scientific_name))
 
         panel = assemble_species_panel(
             scientific_name=species.scientific_name,
@@ -72,9 +127,15 @@ def main() -> None:
 
     all_ranges = pd.concat(range_frames, ignore_index=True)
     analysis_panel = pd.concat(panel_frames, ignore_index=True)
+    map_points = (
+        pd.concat(map_point_frames, ignore_index=True)
+        if map_point_frames
+        else pd.DataFrame(columns=["scientific_name", "period_label", *MAP_POINT_COLUMNS])
+    )
 
     all_ranges.to_csv(PROCESSED_DIR / "range_metrics.csv", index=False)
     analysis_panel.to_csv(PROCESSED_DIR / "analysis_panel.csv", index=False)
+    map_points.to_csv(PROCESSED_DIR / "occurrence_map_points.csv", index=False)
 
     print("Saved processed data to:", PROCESSED_DIR)
 

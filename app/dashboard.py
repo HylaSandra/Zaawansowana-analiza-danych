@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from climate_birds.config import PROCESSED_DIR, RAW_DIR, SELECTED_SPECIES
+from climate_birds.data_sources.gbif import fetch_occurrences
 from climate_birds.processing import calculate_dashboard_metrics
 from climate_birds.statistics import correlation_tests, linear_trend_test, period_comparison, stationarity_test
 
@@ -89,6 +90,17 @@ MAP_PERIODS = {
 }
 DEFAULT_MAP_PERIOD = "2010-2019"
 MAX_MAP_POINTS = 3500
+LIVE_GBIF_RECORDS_PER_YEAR = 500
+MAP_POINTS_PATH = PROCESSED_DIR / "occurrence_map_points.csv"
+OCCURRENCE_POINT_COLUMNS = [
+    "gbif_id",
+    "decimal_latitude",
+    "decimal_longitude",
+    "country_code",
+    "year",
+    "month",
+    "basis_of_record",
+]
 
 
 def inject_custom_styles() -> None:
@@ -642,31 +654,84 @@ def selected_species_config(scientific_name: str):
     )
 
 
-@st.cache_data(show_spinner=False)
-def load_occurrence_points(scientific_name: str) -> pd.DataFrame:
+def empty_occurrence_points() -> pd.DataFrame:
+    return pd.DataFrame(columns=OCCURRENCE_POINT_COLUMNS)
+
+
+def normalize_occurrence_points(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return empty_occurrence_points()
+
+    normalized = frame.copy()
+    for column in OCCURRENCE_POINT_COLUMNS:
+        if column not in normalized.columns:
+            normalized[column] = pd.NA
+
+    normalized = normalized[OCCURRENCE_POINT_COLUMNS].copy()
+    for column in ("year", "month", "decimal_latitude", "decimal_longitude"):
+        normalized[column] = pd.to_numeric(normalized[column], errors="coerce")
+
+    normalized = normalized.dropna(subset=["year", "decimal_latitude", "decimal_longitude"]).copy()
+    if normalized.empty:
+        return empty_occurrence_points()
+
+    normalized["year"] = normalized["year"].astype(int)
+    normalized["country_code"] = normalized["country_code"].fillna("brak danych").astype(str)
+    return normalized.sort_values("year").reset_index(drop=True)
+
+
+def load_raw_occurrence_points(scientific_name: str) -> pd.DataFrame:
     species = selected_species_config(scientific_name)
     occurrence_path = RAW_DIR / "gbif" / f"{species.slug}_occurrences.csv"
-    columns = [
-        "gbif_id",
-        "decimal_latitude",
-        "decimal_longitude",
-        "country_code",
-        "year",
-        "month",
-        "basis_of_record",
-    ]
     if not occurrence_path.exists():
-        return pd.DataFrame(columns=columns)
+        return empty_occurrence_points()
 
-    frame = pd.read_csv(occurrence_path, usecols=lambda column: column in columns)
-    for column in ("year", "month", "decimal_latitude", "decimal_longitude"):
-        if column in frame.columns:
-            frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    frame = frame.dropna(subset=["year", "decimal_latitude", "decimal_longitude"]).copy()
-    frame["year"] = frame["year"].astype(int)
-    if "country_code" in frame.columns:
-        frame["country_code"] = frame["country_code"].fillna("brak danych").astype(str)
-    return frame
+    frame = pd.read_csv(occurrence_path, usecols=lambda column: column in OCCURRENCE_POINT_COLUMNS)
+    return normalize_occurrence_points(frame)
+
+
+def load_processed_map_points(scientific_name: str, period_label: str) -> pd.DataFrame:
+    if not MAP_POINTS_PATH.exists():
+        return empty_occurrence_points()
+
+    columns = set(OCCURRENCE_POINT_COLUMNS) | {"scientific_name", "period_label"}
+    frame = pd.read_csv(MAP_POINTS_PATH, usecols=lambda column: column in columns)
+
+    if "scientific_name" in frame.columns:
+        frame = frame[frame["scientific_name"].astype(str).str.strip() == scientific_name].copy()
+
+    if "period_label" in frame.columns:
+        frame = frame[frame["period_label"].astype(str) == period_label].copy()
+        return normalize_occurrence_points(frame)
+
+    return filter_occurrences_by_period(normalize_occurrence_points(frame), period_label)
+
+
+def fetch_live_occurrence_points(scientific_name: str, period_label: str) -> pd.DataFrame:
+    start_year, end_year = MAP_PERIODS.get(period_label, MAP_PERIODS[DEFAULT_MAP_PERIOD])
+    try:
+        frame = fetch_occurrences(
+            scientific_name=scientific_name,
+            years=range(start_year, end_year + 1),
+            max_records_per_year=LIVE_GBIF_RECORDS_PER_YEAR,
+        )
+    except Exception:
+        return empty_occurrence_points()
+
+    return normalize_occurrence_points(frame)
+
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 24)
+def load_occurrence_points(scientific_name: str, period_label: str) -> pd.DataFrame:
+    raw_points = load_raw_occurrence_points(scientific_name)
+    if not raw_points.empty:
+        return filter_occurrences_by_period(raw_points, period_label)
+
+    processed_points = load_processed_map_points(scientific_name, period_label)
+    if not processed_points.empty:
+        return processed_points
+
+    return fetch_live_occurrence_points(scientific_name, period_label)
 
 
 def filter_occurrences_by_period(points: pd.DataFrame, period_label: str) -> pd.DataFrame:
@@ -1553,8 +1618,7 @@ def render_selected_chart(chart_key: str, frame: pd.DataFrame, species, species_
     if chart_key == "map":
         render_chart_description(chart_key)
         period_label = render_map_period_buttons()
-        occurrence_points = load_occurrence_points(species.scientific_name)
-        period_points = filter_occurrences_by_period(occurrence_points, period_label)
+        period_points = load_occurrence_points(species.scientific_name, period_label)
         shown_count = min(len(period_points), MAX_MAP_POINTS)
         st.markdown(
             (

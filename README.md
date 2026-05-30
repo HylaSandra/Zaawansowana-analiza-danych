@@ -83,6 +83,7 @@ Repozytorium jest przygotowane pod wdrożenie jako `Render Web Service`:
 - `render.yaml` definiuje usługę Render,
 - `.python-version` przypina serię Pythona do `3.11`,
 - aplikacja korzysta z gotowych plików w `data/processed`, więc na Render nie trzeba uruchamiać pipeline'u pobierającego dane z `GBIF` i `Open-Meteo`.
+- mapa obserwacji używa lekkiego pliku `data/processed/occurrence_map_points.csv`; jeśli go brakuje, dashboard awaryjnie próbuje użyć lokalnych plików `data/raw/gbif` albo pobrać punkty dla wybranej dekady z `GBIF`.
 
 Najprostsza ścieżka wdrożenia:
 
