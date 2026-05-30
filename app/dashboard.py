@@ -244,6 +244,46 @@ def inject_custom_styles() -> None:
             background: rgba(15, 44, 69, 0.96) !important;
             border-color: rgba(143, 211, 255, 0.70) !important;
         }}
+        div[role="radiogroup"]:has(button[kind^="pills"]),
+        div[role="radiogroup"]:has(button[data-testid^="stBaseButton-pills"]) {{
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: center !important;
+            align-items: stretch !important;
+            gap: 0.55rem !important;
+        }}
+        div[role="radiogroup"] > button[kind^="pills"],
+        div[role="radiogroup"] > button[data-testid^="stBaseButton-pills"],
+        div[role="radiogroup"] > div:has(button[kind^="pills"]),
+        div[role="radiogroup"] > div:has(button[data-testid^="stBaseButton-pills"]),
+        div[role="radiogroup"] > label:has(button[kind^="pills"]),
+        div[role="radiogroup"] > label:has(button[data-testid^="stBaseButton-pills"]) {{
+            flex: 0 1 13.5rem !important;
+            max-width: min(13.5rem, 100%) !important;
+            min-width: min(9.5rem, 100%) !important;
+        }}
+        div[role="radiogroup"] > div:has(button[kind^="pills"]) button,
+        div[role="radiogroup"] > div:has(button[data-testid^="stBaseButton-pills"]) button,
+        div[role="radiogroup"] > label:has(button[kind^="pills"]) button,
+        div[role="radiogroup"] > label:has(button[data-testid^="stBaseButton-pills"]) button {{
+            width: 100% !important;
+        }}
+        div[role="radiogroup"] button[kind^="pills"],
+        div[role="radiogroup"] button[data-testid^="stBaseButton-pills"] {{
+            justify-content: center !important;
+            min-height: 2.75rem !important;
+            padding: 0.55rem 0.85rem !important;
+            text-align: center !important;
+            white-space: normal !important;
+        }}
+        div[role="radiogroup"] button[kind^="pills"] p,
+        div[role="radiogroup"] button[data-testid^="stBaseButton-pills"] p {{
+            margin: 0 !important;
+            max-width: 100% !important;
+            overflow-wrap: anywhere !important;
+            text-align: center !important;
+            white-space: normal !important;
+        }}
         div.stButton > button p {{
             color: {TEXT_BLUE} !important;
             font-weight: 700;
