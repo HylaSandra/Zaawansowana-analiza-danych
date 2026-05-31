@@ -96,6 +96,21 @@ OCCURRENCE_POINT_COLUMNS = [
     "basis_of_record",
 ]
 
+MONTH_LABELS = {
+    1: "styczeń",
+    2: "luty",
+    3: "marzec",
+    4: "kwiecień",
+    5: "maj",
+    6: "czerwiec",
+    7: "lipiec",
+    8: "sierpień",
+    9: "wrzesień",
+    10: "październik",
+    11: "listopad",
+    12: "grudzień",
+}
+
 
 def inject_custom_styles() -> None:
     st.markdown(
@@ -335,14 +350,16 @@ def inject_custom_styles() -> None:
             color: {TEXT_BLUE} !important;
         }}
         div[data-testid="stForm"] div[data-testid="stHorizontalBlock"] {{
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: center !important;
             gap: 0.45rem !important;
-            align-items: stretch !important;
+            align-items: center !important;
         }}
-        div[data-testid="stForm"] div[data-testid="column"] {{
-            width: 100% !important;
-            min-width: 0 !important;
+        div[data-testid="stForm"] div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            flex: 0 0 auto !important;
+            width: auto !important;
+            min-width: max-content !important;
         }}
         div[data-testid="stForm"] div[data-baseweb="select"] input,
         div[data-testid="stForm"] div[data-baseweb="select"] span {{
@@ -356,16 +373,18 @@ def inject_custom_styles() -> None:
             color: {TEXT_BLUE} !important;
         }}
         div[data-testid="stFormSubmitButton"] button {{
-            width: 100% !important;
-            min-height: 2.4rem !important;
+            width: auto !important;
+            min-width: 7.4rem !important;
+            min-height: 2.05rem !important;
             background: {PRIMARY_BLUE} !important;
             color: #0B0C0F !important;
             border: 1px solid {SECONDARY_BLUE} !important;
             border-radius: 6px !important;
             box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.20) !important;
-            padding: 0.38rem 0.64rem !important;
-            font-size: 0.88rem !important;
+            padding: 0.24rem 0.52rem !important;
+            font-size: 0.82rem !important;
             font-weight: 800 !important;
+            line-height: 1.12 !important;
         }}
         div[data-testid="stFormSubmitButton"] button:hover {{
             background: {SECONDARY_BLUE} !important;
@@ -939,6 +958,18 @@ def format_year_selection(years: list[int], all_years: list[int]) -> str:
     return f"wybrane lata: {len(years)} roczników ({years[0]}-{years[-1]})"
 
 
+def format_month_selection(points: pd.DataFrame) -> str:
+    if points.empty or "month" not in points.columns:
+        return "brak informacji o miesiącu"
+
+    month_values = pd.to_numeric(points["month"], errors="coerce").dropna()
+    months = sorted({int(month) for month in month_values if 1 <= int(month) <= 12})
+    if not months:
+        return "brak informacji o miesiącu"
+
+    return ", ".join(f"{month} ({MONTH_LABELS[month]})" for month in months)
+
+
 def empty_known_range_cells() -> pd.DataFrame:
     return pd.DataFrame(
         columns=[
@@ -1490,7 +1521,7 @@ def build_known_range_comparison_figure(
                     "color": PRIMARY_BLUE,
                     "line": {"width": 0.4, "color": "rgba(221, 242, 255, 0.20)"},
                 },
-                name="Znany zasięg",
+                name="Kwadraty: komórki zasięgu referencyjnego",
                 hovertemplate=(
                     "Komórka: %{customdata[0]}<br>"
                     "Źródło: %{customdata[1]}<br>"
@@ -1504,12 +1535,22 @@ def build_known_range_comparison_figure(
     if not display_frame.empty:
         if has_known_range:
             point_layers = (
-                (display_frame[~display_frame["known_range_match"]].copy(), "Poza zasięgiem", "#A7B0BA", 0.72),
-                (display_frame[display_frame["known_range_match"]].copy(), "W zasięgu", ACCENT_BLUE, 0.78),
+                (
+                    display_frame[~display_frame["known_range_match"]].copy(),
+                    "Punkty GBIF: poza komórkami zasięgu",
+                    "#A7B0BA",
+                    0.72,
+                ),
+                (
+                    display_frame[display_frame["known_range_match"]].copy(),
+                    "Punkty GBIF: w komórkach zasięgu",
+                    ACCENT_BLUE,
+                    0.78,
+                ),
             )
         else:
             point_layers = (
-                (display_frame, "Punkty GBIF (brak warstwy zasięgu)", ACCENT_BLUE, 0.72),
+                (display_frame, "Punkty GBIF: obserwacje (brak zasięgu)", ACCENT_BLUE, 0.72),
             )
 
         for display_points, name, color, opacity in point_layers:
@@ -1585,8 +1626,8 @@ def build_known_range_comparison_figure(
             "bordercolor": "rgba(143, 211, 255, 0.24)",
             "borderwidth": 1,
             "font": {"color": TEXT_BLUE, "size": 11},
+            "title": {"text": "Legenda mapy", "font": {"color": SECONDARY_BLUE, "size": 12}},
         },
-        legend_title="",
         height=620,
         margin={"l": 0, "r": 0, "t": 56, "b": 0},
     )
@@ -1673,7 +1714,7 @@ def render_year_filter(frame: pd.DataFrame) -> list[int]:
             key=draft_key,
             placeholder="Wybierz dowolne lata",
         )
-        apply_column, all_column = st.columns([1, 1], gap="small")
+        _, apply_column, all_column, _ = st.columns([2, 1, 1, 2], gap="small")
         apply_clicked = apply_column.form_submit_button("Zastosuj lata", type="primary")
         all_clicked = all_column.form_submit_button("Wszystkie lata", type="primary")
 
@@ -2154,6 +2195,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     matched_label = format_count(matched_count)
     outside_label = format_count(outside_count)
     range_cells_label = format_count(range_cells_count)
+    months_label = format_month_selection(classified_points)
 
     st.plotly_chart(
         build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
@@ -2165,8 +2207,9 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             <div class="comparison-kicker">Porównanie zasięgu</div>
             <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
             <p>
-                Źródło warstwy: <strong>{escape(range_source)}</strong>. Jasnoniebieskie kwadraty pokazują komórki
-                znanego/przybliżonego zasięgu lęgowego.
+                Punkty pokazują pojedyncze obserwacje GBIF z wybranych lat; miesiące w tych punktach:
+                <strong>{escape(months_label)}</strong>. Kwadraty pokazują komórki znanego/przybliżonego
+                zasięgu lęgowego z warstwy: <strong>{escape(range_source)}</strong>.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
@@ -2190,7 +2233,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     render_insight_grid(
         "Komórki referencyjne oznaczają znany lub przybliżony zasięg lęgowy, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
         (
-            f"W wybranych latach {format_decimal(matched_pct, 1)}% punktów GBIF leży w pobliżu komórek znanego zasięgu, "
+            f"W wybranych latach {format_decimal(matched_pct, 1)}% punktów GBIF leży w komórkach znanego zasięgu, "
             f"a {format_decimal(outside_pct, 1)}% poza nimi."
         ),
         "Punkty poza zasięgiem warto interpretować ostrożnie: mogą oznaczać migrację, obserwacje poza sezonem lęgowym, błąd geolokalizacji albo realną rozbieżność z atlasem.",
