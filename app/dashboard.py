@@ -76,6 +76,7 @@ CHART_OPTIONS = {
     "climate": "Odchylenie temperatury",
     "range": "Obszar obserwacji",
     "map": "Mapa obserwacji",
+    "known_range": "Obserwacje vs zasięg",
     "centroid": "Środek zasięgu",
     "correlation": "Temperatura a populacja",
     "summary": "Podsumowanie i wnioski",
@@ -291,6 +292,100 @@ def inject_custom_styles() -> None:
             outline: none !important;
             border-color: rgba(143, 211, 255, 0.82) !important;
             box-shadow: 0 0 0 0.12rem rgba(143, 211, 255, 0.16) !important;
+        }}
+        div[data-testid="stForm"] {{
+            margin: 0.75rem 0 1rem 0;
+            padding: 1rem 1rem 0.9rem 1rem;
+            border: 1px solid rgba(143, 211, 255, 0.22);
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(8, 22, 38, 0.92), rgba(4, 12, 24, 0.88));
+            box-shadow: 0 1rem 2.3rem rgba(0, 0, 0, 0.14);
+        }}
+        div[data-testid="stForm"] label p {{
+            color: {SECONDARY_BLUE} !important;
+            font-weight: 800 !important;
+        }}
+        div[data-testid="stForm"] div[data-baseweb="select"] > div {{
+            background: rgba(7, 17, 31, 0.96) !important;
+            border: 1px solid rgba(143, 211, 255, 0.26) !important;
+            border-radius: 8px !important;
+            color: {TEXT_BLUE} !important;
+        }}
+        div[data-testid="stForm"] div[data-baseweb="select"] input,
+        div[data-testid="stForm"] div[data-baseweb="select"] span {{
+            color: {TEXT_BLUE} !important;
+        }}
+        div[data-testid="stForm"] div[data-baseweb="tag"],
+        div[data-testid="stForm"] span[data-baseweb="tag"] {{
+            background: rgba(24, 78, 116, 0.88) !important;
+            border: 1px solid rgba(143, 211, 255, 0.30) !important;
+            border-radius: 999px !important;
+            color: {TEXT_BLUE} !important;
+        }}
+        div[data-testid="stFormSubmitButton"] button {{
+            width: 100% !important;
+            min-height: 2.85rem !important;
+            background: linear-gradient(180deg, rgba(24, 78, 116, 0.95), rgba(9, 31, 50, 0.95)) !important;
+            color: {TEXT_BLUE} !important;
+            border: 1px solid rgba(143, 211, 255, 0.72) !important;
+            border-radius: 8px !important;
+            box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0.8rem 1.7rem rgba(79, 169, 232, 0.12) !important;
+            font-weight: 800 !important;
+        }}
+        div[data-testid="stFormSubmitButton"] button:hover {{
+            background: linear-gradient(180deg, rgba(34, 94, 138, 0.98), rgba(12, 40, 64, 0.98)) !important;
+            border-color: rgba(221, 242, 255, 0.94) !important;
+            transform: translateY(-1px);
+        }}
+        .comparison-panel {{
+            margin-top: 0.85rem;
+            padding: 1rem;
+            border: 1px solid rgba(143, 211, 255, 0.20);
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(8, 22, 38, 0.92), rgba(4, 12, 24, 0.88));
+        }}
+        .comparison-kicker {{
+            color: {PRIMARY_BLUE};
+            font-size: 0.82rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 0.45rem;
+        }}
+        .comparison-title {{
+            color: {SECONDARY_BLUE};
+            font-size: 1.22rem;
+            font-weight: 850;
+            margin-bottom: 0.45rem;
+        }}
+        .comparison-panel p {{
+            color: {TEXT_BLUE};
+            margin: 0 0 0.7rem 0;
+            line-height: 1.55;
+        }}
+        .comparison-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.75rem;
+            margin-top: 0.9rem;
+        }}
+        .comparison-stat {{
+            border: 1px solid rgba(143, 211, 255, 0.16);
+            border-radius: 8px;
+            background: rgba(7, 17, 31, 0.72);
+            padding: 0.75rem 0.85rem;
+        }}
+        .comparison-stat-label {{
+            color: {MUTED_TEXT};
+            font-size: 0.8rem;
+            line-height: 1.25;
+        }}
+        .comparison-stat-value {{
+            color: {SUCCESS_BLUE};
+            font-size: 1.5rem;
+            font-weight: 800;
+            line-height: 1.05;
+            margin-top: 0.35rem;
         }}
         div[data-testid="stMetric"] {{
             background: {CARD_BG};
@@ -582,6 +677,9 @@ def inject_custom_styles() -> None:
             }}
             .metric-grid {{
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }}
+            .comparison-grid {{
+                grid-template-columns: 1fr;
             }}
             h1 {{
                 font-size: 2rem !important;
@@ -1214,7 +1312,7 @@ def render_year_filter(frame: pd.DataFrame) -> list[int]:
         )
         apply_column, all_column = st.columns([1, 1])
         apply_clicked = apply_column.form_submit_button("Zastosuj lata", type="primary")
-        all_clicked = all_column.form_submit_button("Wszystkie lata")
+        all_clicked = all_column.form_submit_button("Wszystkie lata", type="primary")
 
     if all_clicked:
         st.session_state["applied_years"] = years
@@ -1447,6 +1545,12 @@ def render_chart_description(chart_key: str) -> None:
             "Filtr lat pozwala zobaczyć, gdzie gatunek był notowany w dowolnie wybranych rocznikach. "
             "Punkty nie oznaczają liczby osobników, tylko miejsca zapisanych obserwacji."
         ),
+        "known_range": (
+            "Co pokazuje to porównanie?",
+            "Ten widok sprawdza, czy w projekcie jest niezależny zasięg referencyjny gatunku, "
+            "z którym można porównać punkty obserwacji GBIF. Same punkty GBIF nie są takim zasięgiem, "
+            "bo zależą od aktywności obserwatorów."
+        ),
         "centroid": (
             "Co pokazuje ten wykres?",
             "Wykres pokazuje średnią szerokość geograficzną zajętych pól siatki w danym roku. "
@@ -1609,6 +1713,60 @@ def render_chart_insights(chart_key: str, frame: pd.DataFrame) -> None:
     )
 
 
+def render_known_range_comparison(species, selected_years: list[int], all_years: list[int]) -> None:
+    years_label = format_year_selection(selected_years, all_years)
+    year_points = load_occurrence_points(species.scientific_name, tuple(selected_years))
+    records_count = len(year_points)
+    years_count = year_points["year"].nunique() if not year_points.empty and "year" in year_points.columns else 0
+    countries_count = (
+        year_points["country_code"].nunique()
+        if not year_points.empty and "country_code" in year_points.columns
+        else 0
+    )
+    records_label = f"{records_count:,}".replace(",", " ")
+
+    st.markdown(
+        f"""
+        <div class="comparison-panel">
+            <div class="comparison-kicker">Porównanie zasięgu</div>
+            <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
+            <p>
+                Dla wyboru: <strong>{escape(years_label)}</strong> mamy punkty obserwacji GBIF, ale w projekcie
+                nie ma jeszcze niezależnej warstwy referencyjnej z faktycznie znanym zasięgiem gatunku.
+                Dlatego ten widok nie wylicza procentu punktów wewnątrz/poza zasięgiem, żeby nie mieszać
+                obserwacji zgłoszonych przez użytkowników z potwierdzonym zasięgiem występowania.
+            </p>
+            <p>
+                Żeby wykonać właściwe porównanie, trzeba dodać osobny zbiór referencyjny, np. siatkę atlasową
+                EBBA2 albo poligon zasięgu BirdLife/IUCN. Wtedy można sprawdzić, ile punktów GBIF wpada
+                w znany zasięg, ile leży poza nim i gdzie pojawiają się rozbieżności.
+            </p>
+            <div class="comparison-grid">
+                <div class="comparison-stat">
+                    <div class="comparison-stat-label">Punkty GBIF w wybranych latach</div>
+                    <div class="comparison-stat-value">{records_label}</div>
+                </div>
+                <div class="comparison-stat">
+                    <div class="comparison-stat-label">Lata z punktami GBIF</div>
+                    <div class="comparison-stat-value">{years_count}</div>
+                </div>
+                <div class="comparison-stat">
+                    <div class="comparison-stat-label">Kraje w punktach GBIF</div>
+                    <div class="comparison-stat-value">{countries_count}</div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    render_insight_grid(
+        "Punkty GBIF pokazują miejsca zgłoszonych obserwacji, a nie kompletny zasięg biologiczny gatunku.",
+        "W obecnych danych brakuje niezależnego atlasu lub poligonu zasięgu, więc nie da się jeszcze policzyć zgodności obserwacji z faktycznym zasięgiem.",
+        "Najlepszy kolejny krok to dodanie danych referencyjnych z atlasu lub zasięgu gatunku i porównanie ich z punktami GBIF na wspólnej siatce przestrzennej.",
+    )
+
+
 def render_summary_view(species, species_panel: pd.DataFrame, species_trend: pd.DataFrame) -> None:
     st.subheader("Podsumowanie i wnioski")
     st.write(
@@ -1711,6 +1869,11 @@ def render_selected_chart(
         render_chart_description(chart_key)
         st.plotly_chart(build_range_figure(frame), width="stretch")
         render_chart_insights(chart_key, frame)
+        return
+
+    if chart_key == "known_range":
+        render_chart_description(chart_key)
+        render_known_range_comparison(species, selected_years, all_years)
         return
 
     if chart_key == "map":
