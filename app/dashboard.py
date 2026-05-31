@@ -198,7 +198,9 @@ def inject_custom_styles() -> None:
             border: 1px solid rgba(143, 211, 255, 0.24);
             border-radius: 6px;
             font-weight: 700;
-            min-height: 3rem;
+            min-height: 2.45rem;
+            padding: 0.42rem 0.7rem;
+            font-size: 0.9rem;
             white-space: normal;
             transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
         }}
@@ -247,7 +249,7 @@ def inject_custom_styles() -> None:
             flex-wrap: wrap !important;
             justify-content: center !important;
             align-items: stretch !important;
-            gap: 0.55rem !important;
+            gap: 0.4rem !important;
         }}
         div[role="radiogroup"] > button[kind^="pills"],
         div[role="radiogroup"] > button[data-testid^="stBaseButton-pills"],
@@ -255,9 +257,9 @@ def inject_custom_styles() -> None:
         div[role="radiogroup"] > div:has(button[data-testid^="stBaseButton-pills"]),
         div[role="radiogroup"] > label:has(button[kind^="pills"]),
         div[role="radiogroup"] > label:has(button[data-testid^="stBaseButton-pills"]) {{
-            flex: 0 1 13.5rem !important;
-            max-width: min(13.5rem, 100%) !important;
-            min-width: min(9.5rem, 100%) !important;
+            flex: 0 1 12rem !important;
+            max-width: min(12rem, 100%) !important;
+            min-width: min(8.5rem, 100%) !important;
         }}
         div[role="radiogroup"] > div:has(button[kind^="pills"]) button,
         div[role="radiogroup"] > div:has(button[data-testid^="stBaseButton-pills"]) button,
@@ -269,8 +271,9 @@ def inject_custom_styles() -> None:
         div[role="radiogroup"] button[data-testid^="stBaseButton-pills"] {{
             justify-content: center !important;
             border-radius: 6px !important;
-            min-height: 2.75rem !important;
-            padding: 0.55rem 0.85rem !important;
+            min-height: 2.35rem !important;
+            padding: 0.38rem 0.65rem !important;
+            font-size: 0.88rem !important;
             text-align: center !important;
             white-space: normal !important;
         }}
@@ -315,7 +318,7 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stForm"] {{
             margin: 0.75rem 0 1rem 0;
-            padding: 1rem 1rem 0.9rem 1rem;
+            padding: 0.78rem 0.82rem 0.72rem 0.82rem;
             border: 1px solid rgba(143, 211, 255, 0.22);
             border-radius: 8px;
             background: linear-gradient(135deg, rgba(27, 30, 37, 0.94), rgba(14, 16, 20, 0.92));
@@ -334,7 +337,7 @@ def inject_custom_styles() -> None:
         div[data-testid="stForm"] div[data-testid="stHorizontalBlock"] {{
             display: grid !important;
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 0.6rem !important;
+            gap: 0.45rem !important;
             align-items: stretch !important;
         }}
         div[data-testid="stForm"] div[data-testid="column"] {{
@@ -354,12 +357,14 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stFormSubmitButton"] button {{
             width: 100% !important;
-            min-height: 2.85rem !important;
+            min-height: 2.4rem !important;
             background: {PRIMARY_BLUE} !important;
             color: #0B0C0F !important;
             border: 1px solid {SECONDARY_BLUE} !important;
             border-radius: 6px !important;
             box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.20) !important;
+            padding: 0.38rem 0.64rem !important;
+            font-size: 0.88rem !important;
             font-weight: 800 !important;
         }}
         div[data-testid="stFormSubmitButton"] button:hover {{
@@ -572,16 +577,17 @@ def inject_custom_styles() -> None:
         }}
         .insight-grid {{
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
             gap: 0.8rem;
             margin-top: 0.85rem;
+            width: 100%;
         }}
         .insight-card {{
             background: {CARD_BG};
             border: 1px solid rgba(143, 211, 255, 0.20);
             border-radius: 8px;
             padding: 0.9rem 1rem;
-            min-height: 8.3rem;
+            min-height: auto;
         }}
         .insight-title {{
             color: {PRIMARY_BLUE};
@@ -1569,10 +1575,20 @@ def build_known_range_comparison_figure(
         plot_bgcolor=PLOT_BG,
         font={"color": TEXT_BLUE},
         title_font={"color": SECONDARY_BLUE},
-        legend={"orientation": "h", "y": -0.05, "x": 0.5, "xanchor": "center", "yanchor": "top"},
+        legend={
+            "orientation": "v",
+            "x": 0.01,
+            "y": 0.98,
+            "xanchor": "left",
+            "yanchor": "top",
+            "bgcolor": "rgba(11, 12, 15, 0.74)",
+            "bordercolor": "rgba(143, 211, 255, 0.24)",
+            "borderwidth": 1,
+            "font": {"color": TEXT_BLUE, "size": 11},
+        },
         legend_title="",
         height=620,
-        margin={"l": 0, "r": 0, "t": 56, "b": 54},
+        margin={"l": 0, "r": 0, "t": 56, "b": 0},
     )
     return figure
 
@@ -1649,7 +1665,7 @@ def render_year_filter(frame: pd.DataFrame) -> list[int]:
     else:
         st.session_state[draft_key] = [int(year) for year in draft_years if int(year) in years]
 
-    st.caption("Zmień wybór lat, a potem kliknij „Zastosuj lata”. Dzięki temu wykresy nie przeładowują się po każdym kliknięciu.")
+    st.caption("Zmień wybór lat, a potem kliknij „Zastosuj lata”.")
     with st.form("year_filter_form"):
         draft_selection = st.multiselect(
             "Lata analizy",
@@ -2150,8 +2166,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
             <p>
                 Źródło warstwy: <strong>{escape(range_source)}</strong>. Jasnoniebieskie kwadraty pokazują komórki
-                znanego/przybliżonego zasięgu lęgowego, a nie dane z pojedynczego roku. Punkt uznaję za zgodny,
-                jeśli leży wewnątrz granic komórki referencyjnej.
+                znanego/przybliżonego zasięgu lęgowego.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
