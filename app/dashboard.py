@@ -1428,27 +1428,27 @@ def build_known_range_comparison_figure(
             display_frame[column] = pd.NA
 
     if has_known_range:
-        known_range_geojson = build_known_range_geojson(known_range_cells)
         known_range_hover = known_range_cells[["cell_id", "source"]].fillna("").astype(str).to_numpy()
         figure.add_trace(
-            go.Choropleth(
-                geojson=known_range_geojson,
-                locations=known_range_cells["cell_id"].astype(str),
-                z=[1] * len(known_range_cells),
-                featureidkey="properties.cell_id",
+            go.Scattergeo(
+                lon=known_range_cells["center_longitude"],
+                lat=known_range_cells["center_latitude"],
+                mode="markers",
                 customdata=known_range_hover,
-                colorscale=[
-                    [0, "rgba(143, 211, 255, 0.22)"],
-                    [1, "rgba(143, 211, 255, 0.22)"],
-                ],
-                marker_line_color="rgba(221, 242, 255, 0.28)",
-                marker_line_width=0.25,
-                showscale=False,
+                marker={
+                    "symbol": "square",
+                    "size": 9,
+                    "opacity": 0.18,
+                    "color": PRIMARY_BLUE,
+                    "line": {"width": 0.4, "color": "rgba(221, 242, 255, 0.20)"},
+                },
                 name=f"Znany zasięg: {range_source}",
                 hovertemplate=(
                     "Komórka: %{customdata[0]}<br>"
                     "Źródło: %{customdata[1]}<br>"
-                    "Warstwa zasięgu<extra></extra>"
+                    "Warstwa zasięgu<br>"
+                    "Szerokość: %{lat:.2f}<br>"
+                    "Długość: %{lon:.2f}<extra></extra>"
                 ),
             )
         )
@@ -2102,7 +2102,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             <p>
                 Dla wyboru: <strong>{escape(years_label)}</strong> porównuję punkty obserwacji GBIF z komórkami
                 referencyjnymi zasięgu lęgowego. Źródło warstwy: <strong>{escape(range_source)}</strong>.
-                Błękitne wypełnienie na mapie pokazuje obszar znanego lub przybliżonego występowania gatunku.
+                Jasnoniebieskie kwadraty na mapie pokazują komórki znanego lub przybliżonego występowania gatunku.
                 Punkt uznaję za zgodny ze znanym zasięgiem, jeśli znajduje się maksymalnie
                 {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka zajętej komórki referencyjnej.
             </p>
