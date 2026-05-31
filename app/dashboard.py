@@ -222,26 +222,26 @@ def inject_custom_styles() -> None:
         div.stButton > button:hover {{
             background: rgba(34, 39, 47, 0.96);
             border-color: rgba(143, 211, 255, 0.75);
-            color: {SECONDARY_BLUE};
+            color: {PRIMARY_BLUE};
             box-shadow: 0 0 0 0.12rem rgba(143, 211, 255, 0.12), 0 0.8rem 2rem rgba(79, 169, 232, 0.16);
             transform: translateY(-1px);
         }}
         div.stButton > button:focus {{
             border-color: rgba(143, 211, 255, 0.80);
-            color: {SECONDARY_BLUE};
+            color: {PRIMARY_BLUE};
             box-shadow: 0 0 0 0.12rem rgba(143, 211, 255, 0.18);
             outline: none;
         }}
         div.stButton > button[kind="primary"] {{
             background: {PRIMARY_BLUE} !important;
-            border-color: {SECONDARY_BLUE} !important;
+            border-color: {PRIMARY_BLUE} !important;
             color: #0B0C0F !important;
             box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.22) !important;
         }}
         button[kind="pillsActive"],
         button[data-testid="stBaseButton-pillsActive"] {{
             background: {PRIMARY_BLUE} !important;
-            border-color: {SECONDARY_BLUE} !important;
+            border-color: {PRIMARY_BLUE} !important;
             border-radius: 6px !important;
             color: #0B0C0F !important;
             box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.22) !important;
@@ -320,7 +320,7 @@ def inject_custom_styles() -> None:
         button[aria-pressed="true"],
         button[aria-selected="true"] {{
             background: {PRIMARY_BLUE} !important;
-            border-color: {SECONDARY_BLUE} !important;
+            border-color: {PRIMARY_BLUE} !important;
             border-radius: 6px !important;
             color: #0B0C0F !important;
             box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.22) !important;
@@ -378,7 +378,7 @@ def inject_custom_styles() -> None:
             min-height: 2.05rem !important;
             background: {PRIMARY_BLUE} !important;
             color: #0B0C0F !important;
-            border: 1px solid {SECONDARY_BLUE} !important;
+            border: 1px solid {PRIMARY_BLUE} !important;
             border-radius: 6px !important;
             box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.20) !important;
             padding: 0.24rem 0.52rem !important;
@@ -387,8 +387,8 @@ def inject_custom_styles() -> None:
             line-height: 1.12 !important;
         }}
         div[data-testid="stFormSubmitButton"] button:hover {{
-            background: {SECONDARY_BLUE} !important;
-            border-color: rgba(221, 242, 255, 0.94) !important;
+            background: {PRIMARY_BLUE} !important;
+            border-color: {PRIMARY_BLUE} !important;
             transform: translateY(-1px);
         }}
         .comparison-panel {{
