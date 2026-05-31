@@ -748,15 +748,25 @@ def fetch_live_occurrence_points(scientific_name: str, years: list[int]) -> pd.D
 
 
 @st.cache_data(show_spinner=False, ttl=60 * 60 * 24)
-def load_occurrence_points(scientific_name: str, years: tuple[int, ...]) -> pd.DataFrame:
-    selected_years = list(years)
+@st.cache_data(show_spinner=False)
+def load_stored_occurrence_points(scientific_name: str) -> pd.DataFrame:
     raw_points = load_raw_occurrence_points(scientific_name)
     if not raw_points.empty:
-        return filter_occurrences_by_years(raw_points, selected_years)
+        return raw_points
 
     processed_points = load_processed_map_points(scientific_name)
     if not processed_points.empty:
-        return filter_occurrences_by_years(processed_points, selected_years)
+        return processed_points
+
+    return empty_occurrence_points()
+
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 24)
+def load_occurrence_points(scientific_name: str, years: tuple[int, ...]) -> pd.DataFrame:
+    selected_years = list(years)
+    stored_points = load_stored_occurrence_points(scientific_name)
+    if not stored_points.empty:
+        return filter_occurrences_by_years(stored_points, selected_years)
 
     return fetch_live_occurrence_points(scientific_name, selected_years)
 
@@ -1174,28 +1184,52 @@ def render_chart_buttons() -> str:
 
 def render_year_filter(frame: pd.DataFrame) -> list[int]:
     years = available_years(frame)
-    current_years = st.session_state.get("selected_years")
+    current_years = st.session_state.get("applied_years")
     if current_years is None:
-        st.session_state["selected_years"] = years
+        st.session_state["applied_years"] = years
     else:
         valid_years = [int(year) for year in current_years if int(year) in years]
         if valid_years or not current_years:
-            st.session_state["selected_years"] = valid_years
+            st.session_state["applied_years"] = valid_years
         else:
-            st.session_state["selected_years"] = years
+            st.session_state["applied_years"] = years
 
-    selected_years = st.multiselect(
-        "Lata analizy",
-        years,
-        key="selected_years",
-        placeholder="Wybierz dowolne lata",
-    )
-    selected_years = sorted(int(year) for year in selected_years)
+    draft_key = "draft_selected_years"
+    draft_years = st.session_state.get(draft_key)
+    if st.session_state.get("sync_year_filter_draft", False):
+        st.session_state["sync_year_filter_draft"] = False
+        st.session_state[draft_key] = st.session_state["applied_years"]
+    elif draft_years is None:
+        st.session_state[draft_key] = st.session_state["applied_years"]
+    else:
+        st.session_state[draft_key] = [int(year) for year in draft_years if int(year) in years]
+
+    st.caption("Zmień wybór lat, a potem kliknij „Zastosuj lata”. Dzięki temu wykresy nie przeładowują się po każdym kliknięciu.")
+    with st.form("year_filter_form"):
+        draft_selection = st.multiselect(
+            "Lata analizy",
+            years,
+            key=draft_key,
+            placeholder="Wybierz dowolne lata",
+        )
+        apply_column, all_column = st.columns([1, 1])
+        apply_clicked = apply_column.form_submit_button("Zastosuj lata", type="primary")
+        all_clicked = all_column.form_submit_button("Wszystkie lata")
+
+    if all_clicked:
+        st.session_state["applied_years"] = years
+        st.session_state["sync_year_filter_draft"] = True
+        st.rerun()
+
+    if apply_clicked:
+        st.session_state["applied_years"] = sorted(int(year) for year in draft_selection)
+
+    selected_years = sorted(int(year) for year in st.session_state["applied_years"])
 
     if selected_years:
         st.caption(f"Filtr aktywny: {format_year_selection(selected_years, years)}.")
     else:
-        st.warning("Wybierz co najmniej jeden rok, żeby wyświetlić wykres lub mapę.")
+        st.warning("Wybierz co najmniej jeden rok i kliknij „Zastosuj lata”, żeby wyświetlić wykres lub mapę.")
 
     return selected_years
 
