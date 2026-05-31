@@ -17,14 +17,6 @@ from climate_birds.data_sources.gbif import fetch_occurrences, load_occurrences,
 from climate_birds.data_sources.pecbms import download_pecbms_excel, load_population_indices, load_population_trends
 from climate_birds.processing import assemble_species_panel, summarize_occurrences
 
-MAP_PERIODS = {
-    "1980-1989": (1980, 1989),
-    "1990-1999": (1990, 1999),
-    "2000-2009": (2000, 2009),
-    "2010-2019": (2010, 2019),
-    "2020-2024": (2020, 2024),
-}
-MAX_MAP_POINTS = 3500
 MAP_POINT_COLUMNS = [
     "gbif_id",
     "decimal_latitude",
@@ -36,9 +28,9 @@ MAP_POINT_COLUMNS = [
 ]
 
 
-def build_map_point_samples(occurrences: pd.DataFrame, scientific_name: str) -> list[pd.DataFrame]:
+def build_map_points(occurrences: pd.DataFrame, scientific_name: str) -> pd.DataFrame:
     if occurrences.empty:
-        return []
+        return pd.DataFrame(columns=["scientific_name", *MAP_POINT_COLUMNS])
 
     frame = occurrences.copy()
     for column in MAP_POINT_COLUMNS:
@@ -50,25 +42,12 @@ def build_map_point_samples(occurrences: pd.DataFrame, scientific_name: str) -> 
 
     frame = frame.dropna(subset=["year", "decimal_latitude", "decimal_longitude"]).copy()
     if frame.empty:
-        return []
+        return pd.DataFrame(columns=["scientific_name", *MAP_POINT_COLUMNS])
 
     frame["year"] = frame["year"].astype(int)
-    frames: list[pd.DataFrame] = []
-
-    for period_label, (start_year, end_year) in MAP_PERIODS.items():
-        period_frame = frame[frame["year"].between(start_year, end_year)].copy()
-        if period_frame.empty:
-            continue
-
-        if len(period_frame) > MAX_MAP_POINTS:
-            period_frame = period_frame.sample(MAX_MAP_POINTS, random_state=42)
-
-        period_frame = period_frame.sort_values("year")[MAP_POINT_COLUMNS].copy()
-        period_frame.insert(0, "period_label", period_label)
-        period_frame.insert(0, "scientific_name", scientific_name)
-        frames.append(period_frame)
-
-    return frames
+    map_points = frame.sort_values("year")[MAP_POINT_COLUMNS].copy()
+    map_points.insert(0, "scientific_name", scientific_name)
+    return map_points
 
 
 def main() -> None:
@@ -108,7 +87,7 @@ def main() -> None:
             save_occurrences(occurrences, occurrence_path)
 
         range_metrics = summarize_occurrences(occurrences)
-        map_point_frames.extend(build_map_point_samples(occurrences, species.scientific_name))
+        map_point_frames.append(build_map_points(occurrences, species.scientific_name))
 
         panel = assemble_species_panel(
             scientific_name=species.scientific_name,
@@ -130,7 +109,7 @@ def main() -> None:
     map_points = (
         pd.concat(map_point_frames, ignore_index=True)
         if map_point_frames
-        else pd.DataFrame(columns=["scientific_name", "period_label", *MAP_POINT_COLUMNS])
+        else pd.DataFrame(columns=["scientific_name", *MAP_POINT_COLUMNS])
     )
 
     all_ranges.to_csv(PROCESSED_DIR / "range_metrics.csv", index=False)

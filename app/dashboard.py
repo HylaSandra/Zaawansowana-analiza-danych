@@ -81,16 +81,6 @@ CHART_OPTIONS = {
     "summary": "Podsumowanie i wnioski",
 }
 
-MAP_PERIODS = {
-    "1980-1989": (1980, 1989),
-    "1990-1999": (1990, 1999),
-    "2000-2009": (2000, 2009),
-    "2010-2019": (2010, 2019),
-    "2020-2024": (2020, 2024),
-}
-DEFAULT_MAP_PERIOD = "2010-2019"
-MAX_MAP_POINTS = 3500
-LIVE_GBIF_RECORDS_PER_YEAR = 500
 MAP_POINTS_PATH = PROCESSED_DIR / "occurrence_map_points.csv"
 OCCURRENCE_POINT_COLUMNS = [
     "gbif_id",
@@ -730,7 +720,7 @@ def load_raw_occurrence_points(scientific_name: str) -> pd.DataFrame:
     return normalize_occurrence_points(frame)
 
 
-def load_processed_map_points(scientific_name: str, period_label: str) -> pd.DataFrame:
+def load_processed_map_points(scientific_name: str) -> pd.DataFrame:
     if not MAP_POINTS_PATH.exists():
         return empty_occurrence_points()
 
@@ -740,20 +730,16 @@ def load_processed_map_points(scientific_name: str, period_label: str) -> pd.Dat
     if "scientific_name" in frame.columns:
         frame = frame[frame["scientific_name"].astype(str).str.strip() == scientific_name].copy()
 
-    if "period_label" in frame.columns:
-        frame = frame[frame["period_label"].astype(str) == period_label].copy()
-        return normalize_occurrence_points(frame)
-
-    return filter_occurrences_by_period(normalize_occurrence_points(frame), period_label)
+    return normalize_occurrence_points(frame)
 
 
-def fetch_live_occurrence_points(scientific_name: str, period_label: str) -> pd.DataFrame:
-    start_year, end_year = MAP_PERIODS.get(period_label, MAP_PERIODS[DEFAULT_MAP_PERIOD])
+def fetch_live_occurrence_points(scientific_name: str, years: list[int]) -> pd.DataFrame:
+    if not years:
+        return empty_occurrence_points()
     try:
         frame = fetch_occurrences(
             scientific_name=scientific_name,
-            years=range(start_year, end_year + 1),
-            max_records_per_year=LIVE_GBIF_RECORDS_PER_YEAR,
+            years=years,
         )
     except Exception:
         return empty_occurrence_points()
@@ -762,27 +748,45 @@ def fetch_live_occurrence_points(scientific_name: str, period_label: str) -> pd.
 
 
 @st.cache_data(show_spinner=False, ttl=60 * 60 * 24)
-def load_occurrence_points(scientific_name: str, period_label: str) -> pd.DataFrame:
+def load_occurrence_points(scientific_name: str, years: tuple[int, ...]) -> pd.DataFrame:
+    selected_years = list(years)
     raw_points = load_raw_occurrence_points(scientific_name)
     if not raw_points.empty:
-        return filter_occurrences_by_period(raw_points, period_label)
+        return filter_occurrences_by_years(raw_points, selected_years)
 
-    processed_points = load_processed_map_points(scientific_name, period_label)
+    processed_points = load_processed_map_points(scientific_name)
     if not processed_points.empty:
-        return processed_points
+        return filter_occurrences_by_years(processed_points, selected_years)
 
-    return fetch_live_occurrence_points(scientific_name, period_label)
-
-
-def filter_occurrences_by_period(points: pd.DataFrame, period_label: str) -> pd.DataFrame:
-    start_year, end_year = MAP_PERIODS.get(period_label, MAP_PERIODS[DEFAULT_MAP_PERIOD])
-    return points[points["year"].between(start_year, end_year)].copy()
+    return fetch_live_occurrence_points(scientific_name, selected_years)
 
 
-def sample_occurrence_points(points: pd.DataFrame) -> pd.DataFrame:
-    if len(points) <= MAX_MAP_POINTS:
-        return points.sort_values("year")
-    return points.sample(MAX_MAP_POINTS, random_state=42).sort_values("year")
+def filter_occurrences_by_years(points: pd.DataFrame, years: list[int]) -> pd.DataFrame:
+    if not years:
+        return points.iloc[0:0].copy()
+    return points[points["year"].isin(years)].sort_values("year").copy()
+
+
+def filter_frame_by_years(frame: pd.DataFrame, years: list[int]) -> pd.DataFrame:
+    if not years:
+        return frame.iloc[0:0].copy()
+    return frame[frame["year"].isin(years)].sort_values("year").copy()
+
+
+def available_years(frame: pd.DataFrame) -> list[int]:
+    return sorted(int(year) for year in frame["year"].dropna().unique())
+
+
+def format_year_selection(years: list[int], all_years: list[int]) -> str:
+    if not years:
+        return "brak wybranych lat"
+    if years == all_years:
+        return f"wszystkie lata ({years[0]}-{years[-1]})"
+    if len(years) == 1:
+        return f"rok {years[0]}"
+    if len(years) <= 8:
+        return "lata " + ", ".join(str(year) for year in years)
+    return f"wybrane lata: {len(years)} roczników ({years[0]}-{years[-1]})"
 
 
 def translate_trend_classification(value: str | None) -> str:
@@ -941,42 +945,35 @@ def build_population_figure(frame: pd.DataFrame) -> go.Figure:
     return figure
 
 
-def build_temperature_scatter(frame: pd.DataFrame) -> go.Figure:
+def build_temperature_population_figure(frame: pd.DataFrame) -> go.Figure:
     sample = frame[["breeding_temperature_anomaly_c", "index_pct", "year"]].dropna().copy()
     figure = go.Figure()
     figure.add_trace(
         go.Scatter(
-            x=sample["breeding_temperature_anomaly_c"],
+            x=sample["year"],
             y=sample["index_pct"],
-            mode="markers",
-            marker={"size": 9, "color": ACCENT_BLUE, "line": {"color": TEXT_BLUE, "width": 1}},
-            text=sample["year"].astype(str),
-            name="Lata",
-            hovertemplate="Rok: %{text}<br>Odchylenie temperatury: %{x:.2f} C<br>Indeks: %{y:.2f}<extra></extra>",
+            mode="lines+markers",
+            marker={
+                "size": 9,
+                "color": sample["breeding_temperature_anomaly_c"],
+                "colorscale": [[0, SECONDARY_BLUE], [0.5, PRIMARY_BLUE], [1, ACCENT_BLUE]],
+                "line": {"color": TEXT_BLUE, "width": 1},
+                "colorbar": {"title": "Odchylenie temperatury [C]", "tickfont": {"color": TEXT_BLUE}},
+            },
+            line={"color": "rgba(221, 242, 255, 0.48)", "width": 2},
+            customdata=sample[["breeding_temperature_anomaly_c"]].to_numpy(),
+            name="Indeks populacji",
+            hovertemplate=(
+                "Rok: %{x}<br>"
+                "Indeks populacji: %{y:.2f}<br>"
+                "Odchylenie temperatury: %{customdata[0]:.2f} C<extra></extra>"
+            ),
         )
     )
 
-    if len(sample) >= 2:
-        slope, intercept = np.polyfit(sample["breeding_temperature_anomaly_c"], sample["index_pct"], 1)
-        x_values = np.linspace(
-            sample["breeding_temperature_anomaly_c"].min(),
-            sample["breeding_temperature_anomaly_c"].max(),
-            100,
-        )
-        y_values = slope * x_values + intercept
-        figure.add_trace(
-            go.Scatter(
-                x=x_values,
-                y=y_values,
-                mode="lines",
-                line={"color": TEXT_BLUE, "width": 3},
-                name="Linia trendu",
-            )
-        )
-
     figure.update_layout(
-        title="Temperatura sezonu lęgowego a indeks populacji",
-        xaxis_title="Odchylenie temperatury od średniej [C]",
+        title="Indeks populacji w czasie z informacją o temperaturze sezonu lęgowego",
+        xaxis_title="Rok",
         yaxis_title="Indeks populacji (%)",
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
@@ -1056,11 +1053,11 @@ def build_centroid_figure(frame: pd.DataFrame) -> go.Figure:
     return figure
 
 
-def build_observation_map_figure(points: pd.DataFrame, species, period_label: str) -> go.Figure:
+def build_observation_map_figure(points: pd.DataFrame, species, years_label: str) -> go.Figure:
     figure = go.Figure()
     if points.empty:
         figure.add_annotation(
-            text="Brak punktów obserwacji dla wybranego okresu.",
+            text="Brak punktów obserwacji dla wybranych lat.",
             x=0.5,
             y=0.5,
             xref="paper",
@@ -1069,7 +1066,7 @@ def build_observation_map_figure(points: pd.DataFrame, species, period_label: st
             font={"color": TEXT_BLUE, "size": 18},
         )
     else:
-        display_points = sample_occurrence_points(points)
+        display_points = points.sort_values("year")
         hover_data = display_points[["year", "country_code", "month"]].fillna("").astype(str).to_numpy()
         figure.add_trace(
             go.Scattergeo(
@@ -1113,7 +1110,7 @@ def build_observation_map_figure(points: pd.DataFrame, species, period_label: st
         showframe=False,
     )
     figure.update_layout(
-        title=f"Mapa punktów obserwacji: {species.polish_name}, {period_label}",
+        title=f"Mapa punktów obserwacji: {species.polish_name}, {years_label}",
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor=PLOT_BG,
@@ -1129,7 +1126,6 @@ def initialize_state() -> None:
     default_species = next(iter(SELECTED_SPECIES.values())).scientific_name
     st.session_state.setdefault("selected_species", default_species)
     st.session_state.setdefault("selected_chart", "population")
-    st.session_state.setdefault("selected_map_period", DEFAULT_MAP_PERIOD)
 
 
 def set_selected_species(scientific_name: str) -> None:
@@ -1176,19 +1172,32 @@ def render_chart_buttons() -> str:
     return st.session_state["selected_chart"]
 
 
-def render_map_period_buttons() -> str:
-    st.caption("Wybierz dekadę obserwacji na mapie.")
-    period_label = st.pills(
-        "Okres obserwacji",
-        list(MAP_PERIODS),
-        default=st.session_state["selected_map_period"],
-        key="map_period_selector",
-        label_visibility="collapsed",
-        width="stretch",
+def render_year_filter(frame: pd.DataFrame) -> list[int]:
+    years = available_years(frame)
+    current_years = st.session_state.get("selected_years")
+    if current_years is None:
+        st.session_state["selected_years"] = years
+    else:
+        valid_years = [int(year) for year in current_years if int(year) in years]
+        if valid_years or not current_years:
+            st.session_state["selected_years"] = valid_years
+        else:
+            st.session_state["selected_years"] = years
+
+    selected_years = st.multiselect(
+        "Lata analizy",
+        years,
+        key="selected_years",
+        placeholder="Wybierz dowolne lata",
     )
-    if period_label is not None:
-        st.session_state["selected_map_period"] = period_label
-    return st.session_state["selected_map_period"]
+    selected_years = sorted(int(year) for year in selected_years)
+
+    if selected_years:
+        st.caption(f"Filtr aktywny: {format_year_selection(selected_years, years)}.")
+    else:
+        st.warning("Wybierz co najmniej jeden rok, żeby wyświetlić wykres lub mapę.")
+
+    return selected_years
 
 
 def render_sidebar_glossary() -> None:
@@ -1401,7 +1410,7 @@ def render_chart_description(chart_key: str) -> None:
         "map": (
             "Co pokazuje ta mapa?",
             "Każdy punkt oznacza pojedynczy rekord obserwacji GBIF z datą i współrzędnymi. "
-            "Przyciski dekad pozwalają zobaczyć, gdzie gatunek był notowany w kolejnych okresach. "
+            "Filtr lat pozwala zobaczyć, gdzie gatunek był notowany w dowolnie wybranych rocznikach. "
             "Punkty nie oznaczają liczby osobników, tylko miejsca zapisanych obserwacji."
         ),
         "centroid": (
@@ -1411,8 +1420,8 @@ def render_chart_description(chart_key: str) -> None:
         ),
         "correlation": (
             "Co pokazuje ten wykres?",
-            "Każdy punkt oznacza jeden rok. Oś pozioma pokazuje odchylenie temperatury sezonu lęgowego, a oś pionowa indeks populacji. "
-            "Linia trendu pomaga zobaczyć, czy cieplejsze lata częściej łączą się z wyższym lub niższym indeksem populacji."
+            "Każdy punkt oznacza jeden rok. Oś pozioma pokazuje rok, oś pionowa indeks populacji, "
+            "a kolor punktu pokazuje odchylenie temperatury sezonu lęgowego."
         ),
     }
     if chart_key not in descriptions:
@@ -1447,30 +1456,25 @@ def render_insight_grid(_how_to_read: str, evidence: str, presentation_line: str
     )
 
 
-def render_map_insights(species, period_points: pd.DataFrame, period_label: str) -> None:
-    if period_points.empty:
+def render_map_insights(species, year_points: pd.DataFrame, years_label: str) -> None:
+    if year_points.empty:
         render_insight_grid(
             "Mapa korzysta z punktów obserwacji GBIF zapisanych ze współrzędnymi geograficznymi.",
-            f"W okresie {period_label} nie ma punktów obserwacji dla gatunku {species.polish_name} w lokalnym pliku GBIF.",
-            "W takim przypadku warto przełączyć dekadę albo potraktować brak punktów jako ograniczenie danych, a nie dowód braku gatunku.",
+            f"Dla wyboru: {years_label} nie ma punktów obserwacji dla gatunku {species.polish_name} w używanym zbiorze GBIF.",
+            "W takim przypadku warto wybrać inne lata albo potraktować brak punktów jako ograniczenie danych, a nie dowód braku gatunku.",
         )
         return
 
-    records_count = len(period_points)
-    countries_count = period_points["country_code"].nunique() if "country_code" in period_points.columns else 0
-    shown_count = min(records_count, MAX_MAP_POINTS)
-    sample_note = (
-        f" Dla płynności mapy pokazano próbkę {shown_count} punktów."
-        if records_count > MAX_MAP_POINTS
-        else f" Pokazano wszystkie {shown_count} punkty."
-    )
-    north = period_points["decimal_latitude"].max()
-    south = period_points["decimal_latitude"].min()
+    records_count = len(year_points)
+    countries_count = year_points["country_code"].nunique() if "country_code" in year_points.columns else 0
+    north = year_points["decimal_latitude"].max()
+    south = year_points["decimal_latitude"].min()
     render_insight_grid(
         "Punkt na mapie oznacza rekord obserwacji, czyli informację, że ktoś zanotował gatunek w danym miejscu i czasie. To nie jest liczba osobników.",
         (
-            f"W okresie {period_label} lokalny plik GBIF zawiera {records_count} rekordów z {countries_count} krajów."
-            f"{sample_note} Rozpiętość północ-południe wynosi od {format_decimal(south, 2)}° do {format_decimal(north, 2)}° szerokości geograficznej."
+            f"Dla wyboru: {years_label} używany zbiór GBIF zawiera {records_count} rekordów z {countries_count} krajów. "
+            f"Na mapie pokazano wszystkie te punkty. Rozpiętość północ-południe wynosi od {format_decimal(south, 2)}° "
+            f"do {format_decimal(north, 2)}° szerokości geograficznej."
         ),
         (
             "Mapa pomaga pokazać, czy obserwacje są skupione w części Europy, czy rozproszone szerzej. "
@@ -1480,6 +1484,14 @@ def render_map_insights(species, period_points: pd.DataFrame, period_label: str)
 
 
 def render_chart_insights(chart_key: str, frame: pd.DataFrame) -> None:
+    if frame.empty:
+        render_insight_grid(
+            "Filtr lat ogranicza dane używane w aktualnym widoku.",
+            "Nie wybrano żadnego roku, więc nie ma danych do podsumowania.",
+            "Wybierz przynajmniej jeden rok w filtrze, żeby odtworzyć wykres i wniosek.",
+        )
+        return
+
     trend_label = "brak klasyfikacji trendu"
     if "long_term_classification" in frame.columns and not frame["long_term_classification"].dropna().empty:
         trend_label = translate_trend_classification(frame["long_term_classification"].dropna().iloc[0])
@@ -1553,11 +1565,11 @@ def render_chart_insights(chart_key: str, frame: pd.DataFrame) -> None:
             f"związek jest {direction} i {strength}."
         )
         presentation_line = (
-            "Linia trendu pomaga zobaczyć kierunek zależności, ale wynik trzeba zestawić z biologią gatunku "
+            "Kolor punktów pokazuje temperaturę sezonu lęgowego, ale wynik trzeba zestawić z biologią gatunku "
             "i ograniczeniami danych obserwacyjnych."
         )
     render_insight_grid(
-        "Każdy punkt to jeden rok. Oś X pokazuje odchylenie temperatury sezonu lęgowego, a oś Y indeks populacji.",
+        "Każdy punkt to jeden rok. Oś X pokazuje rok, oś Y indeks populacji, a kolor punktu pokazuje odchylenie temperatury sezonu lęgowego.",
         evidence,
         presentation_line,
     )
@@ -1628,9 +1640,21 @@ def render_summary_view(species, species_panel: pd.DataFrame, species_trend: pd.
     render_science_context()
 
 
-def render_selected_chart(chart_key: str, frame: pd.DataFrame, species, species_trend: pd.DataFrame) -> None:
+def render_selected_chart(
+    chart_key: str,
+    frame: pd.DataFrame,
+    species,
+    species_trend: pd.DataFrame,
+    selected_years: list[int],
+    all_years: list[int],
+) -> None:
     if chart_key == "info":
         render_species_profile(species, frame, species_trend)
+        return
+
+    if frame.empty:
+        render_chart_description(chart_key)
+        st.warning("Brak danych dla wybranych lat. Zaznacz co najmniej jeden rok w filtrze.")
         return
 
     if chart_key == "summary":
@@ -1657,18 +1681,17 @@ def render_selected_chart(chart_key: str, frame: pd.DataFrame, species, species_
 
     if chart_key == "map":
         render_chart_description(chart_key)
-        period_label = render_map_period_buttons()
-        period_points = load_occurrence_points(species.scientific_name, period_label)
-        shown_count = min(len(period_points), MAX_MAP_POINTS)
+        years_label = format_year_selection(selected_years, all_years)
+        year_points = load_occurrence_points(species.scientific_name, tuple(selected_years))
         st.markdown(
             (
                 f'<p class="muted-note">Dane punktowe: GBIF, obserwacje ze współrzędnymi w miesiącach lęgowych '
-                f'(kwiecień-lipiec). Rekordów w okresie: {len(period_points)}; punktów widocznych na mapie: {shown_count}.</p>'
+                f'(kwiecień-lipiec). Wybrane lata: {escape(years_label)}; punktów widocznych na mapie: {len(year_points)}.</p>'
             ),
             unsafe_allow_html=True,
         )
-        st.plotly_chart(build_observation_map_figure(period_points, species, period_label), width="stretch")
-        render_map_insights(species, period_points, period_label)
+        st.plotly_chart(build_observation_map_figure(year_points, species, years_label), width="stretch")
+        render_map_insights(species, year_points, years_label)
         return
 
     if chart_key == "centroid":
@@ -1678,7 +1701,7 @@ def render_selected_chart(chart_key: str, frame: pd.DataFrame, species, species_
         return
 
     render_chart_description(chart_key)
-    st.plotly_chart(build_temperature_scatter(frame), width="stretch")
+    st.plotly_chart(build_temperature_population_figure(frame), width="stretch")
     render_chart_insights(chart_key, frame)
 
 
@@ -1717,6 +1740,21 @@ def main() -> None:
     render_metric_grid(metrics)
 
     selected_chart = render_chart_buttons()
-    render_selected_chart(selected_chart, species_panel, selected_config, species_trend)
+    all_years = available_years(species_panel)
+    if selected_chart == "info":
+        selected_years = all_years
+        filtered_species_panel = species_panel
+    else:
+        selected_years = render_year_filter(species_panel)
+        filtered_species_panel = filter_frame_by_years(species_panel, selected_years)
+
+    render_selected_chart(
+        selected_chart,
+        filtered_species_panel,
+        selected_config,
+        species_trend,
+        selected_years,
+        all_years,
+    )
 if __name__ == "__main__":
     main()

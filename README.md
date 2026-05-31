@@ -51,6 +51,7 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
 - `src/climate_birds/data_sources/climate.py` - indeks klimatu
 - `src/climate_birds/processing.py` - agregacja i łączenie danych
 - `src/climate_birds/statistics.py` - statystyki i testy
+- `data/processed/occurrence_map_points.csv` - przetworzone punkty GBIF używane przez mapę obserwacji
 
 ## Jak uruchomić projekt lokalnie
 
@@ -77,5 +78,6 @@ python -m streamlit run app/dashboard.py
 ## Ograniczenia
 
 - dane `GBIF` są wrażliwe na wysiłek obserwacyjny,
+- mapa pokazuje wszystkie punkty zapisane w używanym zbiorze GBIF dla wybranych lat,
 - indeks klimatu dla Europy jest tu budowany jako agregat dla reprezentatywnych punktów,
 - projekt pokazuje związek statystyczny, a nie twardą zależność przyczynową.
