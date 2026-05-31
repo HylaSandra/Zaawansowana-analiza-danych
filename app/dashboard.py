@@ -197,7 +197,7 @@ def inject_custom_styles() -> None:
             background: rgba(24, 27, 33, 0.92);
             color: {TEXT_BLUE};
             border: 1px solid rgba(143, 211, 255, 0.24);
-            border-radius: 8px;
+            border-radius: 6px;
             font-weight: 700;
             min-height: 3rem;
             white-space: normal;
@@ -217,22 +217,24 @@ def inject_custom_styles() -> None:
             outline: none;
         }}
         div.stButton > button[kind="primary"] {{
-            background: rgba(143, 211, 255, 0.18);
-            border-color: rgba(143, 211, 255, 0.82);
-            color: #F7FCFF;
-            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.12);
+            background: {PRIMARY_BLUE} !important;
+            border-color: {SECONDARY_BLUE} !important;
+            color: #0B0C0F !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.22) !important;
         }}
         button[kind="pillsActive"],
         button[data-testid="stBaseButton-pillsActive"] {{
-            background: rgba(143, 211, 255, 0.20) !important;
-            border-color: rgba(143, 211, 255, 0.82) !important;
-            color: #F7FCFF !important;
-            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.12) !important;
+            background: {PRIMARY_BLUE} !important;
+            border-color: {SECONDARY_BLUE} !important;
+            border-radius: 6px !important;
+            color: #0B0C0F !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.22) !important;
         }}
         button[kind="pills"],
         button[data-testid="stBaseButton-pills"] {{
             background: rgba(24, 27, 33, 0.92) !important;
             border-color: rgba(143, 211, 255, 0.24) !important;
+            border-radius: 6px !important;
             color: {TEXT_BLUE} !important;
         }}
         button[kind="pills"]:hover,
@@ -267,6 +269,7 @@ def inject_custom_styles() -> None:
         div[role="radiogroup"] button[kind^="pills"],
         div[role="radiogroup"] button[data-testid^="stBaseButton-pills"] {{
             justify-content: center !important;
+            border-radius: 6px !important;
             min-height: 2.75rem !important;
             padding: 0.55rem 0.85rem !important;
             text-align: center !important;
@@ -285,12 +288,25 @@ def inject_custom_styles() -> None:
             font-weight: 700;
             margin: 0;
         }}
+        div.stButton > button[kind="primary"] p,
+        button[kind="pillsActive"] p,
+        button[data-testid="stBaseButton-pillsActive"] p,
+        button[aria-pressed="true"] p,
+        button[aria-selected="true"] p,
+        div[data-testid="stFormSubmitButton"] button p {{
+            color: #0B0C0F !important;
+        }}
+        button[kind*="pills"],
+        button[data-testid*="stBaseButton-pills"] {{
+            border-radius: 6px !important;
+        }}
         button[aria-pressed="true"],
         button[aria-selected="true"] {{
-            background: rgba(143, 211, 255, 0.20) !important;
-            border-color: rgba(143, 211, 255, 0.82) !important;
-            color: #F7FCFF !important;
-            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.12) !important;
+            background: {PRIMARY_BLUE} !important;
+            border-color: {SECONDARY_BLUE} !important;
+            border-radius: 6px !important;
+            color: #0B0C0F !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.22) !important;
         }}
         button:focus,
         button:focus-visible {{
@@ -313,8 +329,18 @@ def inject_custom_styles() -> None:
         div[data-testid="stForm"] div[data-baseweb="select"] > div {{
             background: rgba(19, 22, 27, 0.96) !important;
             border: 1px solid rgba(143, 211, 255, 0.26) !important;
-            border-radius: 8px !important;
+            border-radius: 6px !important;
             color: {TEXT_BLUE} !important;
+        }}
+        div[data-testid="stForm"] div[data-testid="stHorizontalBlock"] {{
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 0.6rem !important;
+            align-items: stretch !important;
+        }}
+        div[data-testid="stForm"] div[data-testid="column"] {{
+            width: 100% !important;
+            min-width: 0 !important;
         }}
         div[data-testid="stForm"] div[data-baseweb="select"] input,
         div[data-testid="stForm"] div[data-baseweb="select"] span {{
@@ -330,15 +356,15 @@ def inject_custom_styles() -> None:
         div[data-testid="stFormSubmitButton"] button {{
             width: 100% !important;
             min-height: 2.85rem !important;
-            background: rgba(143, 211, 255, 0.16) !important;
-            color: {TEXT_BLUE} !important;
-            border: 1px solid rgba(143, 211, 255, 0.72) !important;
-            border-radius: 8px !important;
-            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.10) !important;
+            background: {PRIMARY_BLUE} !important;
+            color: #0B0C0F !important;
+            border: 1px solid {SECONDARY_BLUE} !important;
+            border-radius: 6px !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.20) !important;
             font-weight: 800 !important;
         }}
         div[data-testid="stFormSubmitButton"] button:hover {{
-            background: rgba(143, 211, 255, 0.24) !important;
+            background: {SECONDARY_BLUE} !important;
             border-color: rgba(221, 242, 255, 0.94) !important;
             transform: translateY(-1px);
         }}
@@ -430,7 +456,7 @@ def inject_custom_styles() -> None:
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin: 1.45rem 0 0.85rem 0;
+            margin: 0.55rem 0 0.75rem 0;
             padding: 0.9rem 1rem;
             border: 1px solid rgba(143, 211, 255, 0.18);
             border-radius: 8px;
@@ -1617,7 +1643,7 @@ def render_year_filter(frame: pd.DataFrame) -> list[int]:
             key=draft_key,
             placeholder="Wybierz dowolne lata",
         )
-        apply_column, all_column = st.columns([1, 1])
+        apply_column, all_column = st.columns([1, 1], gap="small")
         apply_clicked = apply_column.form_submit_button("Zastosuj lata", type="primary")
         all_clicked = all_column.form_submit_button("Wszystkie lata", type="primary")
 
@@ -1643,9 +1669,18 @@ def render_sidebar_glossary() -> None:
     st.sidebar.markdown(
         """
         <div class="sidebar-note">
-            <strong>PECBMS</strong> - Europejski Monitoring Ptaków, źródło trendów populacji.<br>
-            <strong>GBIF</strong> - globalna baza obserwacji organizmów, tutaj używana do analizy zasięgu.<br>
-            <strong>Wartość p</strong> - informacja, czy wynik testu statystycznego jest istotny.
+            <strong>Źródła danych</strong><br>
+            <strong>PECBMS</strong> - indeksy i trendy populacji ptaków w Europie.<br>
+            <strong>GBIF</strong> - punkty obserwacji gatunków ze współrzędnymi.<br>
+            <strong>Open-Meteo</strong> - historyczne dane temperatury i opadów.<br>
+            <strong>EBBA2 / zasięg</strong> - referencyjna siatka występowania lęgowego.<br><br>
+            <strong>Parametry analizy</strong><br>
+            <strong>Miesiące lęgowe</strong> - kwiecień-lipiec.<br>
+            <strong>Okres bazowy klimatu</strong> - 1991-2020.<br>
+            <strong>Pola siatki</strong> - 1° x 1° dla metryk zasięgu obserwacji.<br>
+            <strong>Zgodność z zasięgiem</strong> - punkt do 36 km od komórki referencyjnej.<br>
+            <strong>Wartość p</strong> - informacja, czy wynik testu statystycznego jest istotny.<br>
+            <strong>Uwaga</strong> - GBIF pokazuje obserwacje, a nie liczebność populacji.
         </div>
         """,
         unsafe_allow_html=True,
