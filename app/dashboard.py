@@ -122,16 +122,16 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stToolbar"] button,
         div[data-testid="stSidebarCollapsedControl"] button {{
-            background: linear-gradient(180deg, rgba(29, 32, 39, 0.96), rgba(18, 20, 25, 0.96)) !important;
+            background: rgba(24, 27, 33, 0.96) !important;
             color: {SECONDARY_BLUE} !important;
             border: 1px solid rgba(143, 211, 255, 0.62) !important;
-            border-radius: 999px !important;
+            border-radius: 8px !important;
             box-shadow: 0 0.35rem 1rem rgba(79, 169, 232, 0.14) !important;
             opacity: 1 !important;
         }}
         div[data-testid="stToolbar"] button:hover,
         div[data-testid="stSidebarCollapsedControl"] button:hover {{
-            background: linear-gradient(180deg, rgba(39, 44, 53, 0.98), rgba(24, 27, 33, 0.98)) !important;
+            background: rgba(44, 50, 60, 0.98) !important;
             border-color: rgba(221, 242, 255, 0.95) !important;
             color: #F7FCFF !important;
         }}
@@ -217,16 +217,17 @@ def inject_custom_styles() -> None:
             outline: none;
         }}
         div.stButton > button[kind="primary"] {{
-            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96));
+            background: rgba(143, 211, 255, 0.18);
             border-color: rgba(143, 211, 255, 0.82);
-            box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0 1.35rem rgba(79, 169, 232, 0.14);
+            color: #F7FCFF;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.12);
         }}
         button[kind="pillsActive"],
         button[data-testid="stBaseButton-pillsActive"] {{
-            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96)) !important;
+            background: rgba(143, 211, 255, 0.20) !important;
             border-color: rgba(143, 211, 255, 0.82) !important;
-            color: {TEXT_BLUE} !important;
-            box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0 1.35rem rgba(79, 169, 232, 0.14) !important;
+            color: #F7FCFF !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.12) !important;
         }}
         button[kind="pills"],
         button[data-testid="stBaseButton-pills"] {{
@@ -286,10 +287,10 @@ def inject_custom_styles() -> None:
         }}
         button[aria-pressed="true"],
         button[aria-selected="true"] {{
-            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96)) !important;
+            background: rgba(143, 211, 255, 0.20) !important;
             border-color: rgba(143, 211, 255, 0.82) !important;
-            color: {TEXT_BLUE} !important;
-            box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0 1.35rem rgba(79, 169, 232, 0.14) !important;
+            color: #F7FCFF !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.12) !important;
         }}
         button:focus,
         button:focus-visible {{
@@ -321,23 +322,23 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stForm"] div[data-baseweb="tag"],
         div[data-testid="stForm"] span[data-baseweb="tag"] {{
-            background: rgba(49, 63, 74, 0.92) !important;
+            background: rgba(143, 211, 255, 0.16) !important;
             border: 1px solid rgba(143, 211, 255, 0.30) !important;
-            border-radius: 999px !important;
+            border-radius: 6px !important;
             color: {TEXT_BLUE} !important;
         }}
         div[data-testid="stFormSubmitButton"] button {{
             width: 100% !important;
             min-height: 2.85rem !important;
-            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96)) !important;
+            background: rgba(143, 211, 255, 0.16) !important;
             color: {TEXT_BLUE} !important;
             border: 1px solid rgba(143, 211, 255, 0.72) !important;
             border-radius: 8px !important;
-            box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0.8rem 1.7rem rgba(79, 169, 232, 0.12) !important;
+            box-shadow: 0 0 0 0.08rem rgba(143, 211, 255, 0.10) !important;
             font-weight: 800 !important;
         }}
         div[data-testid="stFormSubmitButton"] button:hover {{
-            background: linear-gradient(180deg, rgba(58, 73, 85, 0.98), rgba(29, 34, 42, 0.98)) !important;
+            background: rgba(143, 211, 255, 0.24) !important;
             border-color: rgba(221, 242, 255, 0.94) !important;
             transform: translateY(-1px);
         }}
@@ -486,7 +487,7 @@ def inject_custom_styles() -> None:
             display: inline-block;
             background: rgba(143, 211, 255, 0.14);
             border: 1px solid rgba(143, 211, 255, 0.28);
-            border-radius: 999px;
+            border-radius: 6px;
             color: {SECONDARY_BLUE};
             padding: 0.25rem 0.65rem;
             font-size: 0.82rem;
@@ -1442,7 +1443,7 @@ def build_known_range_comparison_figure(
                     "color": PRIMARY_BLUE,
                     "line": {"width": 0.4, "color": "rgba(221, 242, 255, 0.20)"},
                 },
-                name=f"Znany zasięg: {range_source}",
+                name="Znany zasięg",
                 hovertemplate=(
                     "Komórka: %{customdata[0]}<br>"
                     "Źródło: %{customdata[1]}<br>"
@@ -1456,8 +1457,8 @@ def build_known_range_comparison_figure(
     if not display_frame.empty:
         if has_known_range:
             point_layers = (
-                (display_frame[~display_frame["known_range_match"]].copy(), "Punkty poza znanym zasięgiem", "#A7B0BA", 0.72),
-                (display_frame[display_frame["known_range_match"]].copy(), "Punkty w znanym zasięgu", ACCENT_BLUE, 0.78),
+                (display_frame[~display_frame["known_range_match"]].copy(), "Poza zasięgiem", "#A7B0BA", 0.72),
+                (display_frame[display_frame["known_range_match"]].copy(), "W zasięgu", ACCENT_BLUE, 0.78),
             )
         else:
             point_layers = (
@@ -1528,9 +1529,10 @@ def build_known_range_comparison_figure(
         plot_bgcolor=PLOT_BG,
         font={"color": TEXT_BLUE},
         title_font={"color": SECONDARY_BLUE},
-        legend_title="Warstwa",
+        legend={"orientation": "h", "y": -0.05, "x": 0.5, "xanchor": "center", "yanchor": "top"},
+        legend_title="",
         height=620,
-        margin={"l": 0, "r": 0, "t": 56, "b": 0},
+        margin={"l": 0, "r": 0, "t": 56, "b": 54},
     )
     return figure
 
@@ -2035,22 +2037,19 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     records_label = f"{records_count:,}".replace(",", " ")
 
     if known_range_cells.empty:
+        st.plotly_chart(
+            build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
+            width="stretch",
+        )
         st.markdown(
             f"""
             <div class="comparison-panel">
                 <div class="comparison-kicker">Porównanie zasięgu</div>
                 <div class="comparison-title">Brakuje warstwy referencyjnej dla: {escape(species.polish_name)}</div>
                 <p>
-                    Dla wyboru: <strong>{escape(years_label)}</strong> mamy punkty obserwacji GBIF,
-                    ale w repozytorium nie ma jeszcze komórek zasięgu EBBA2 dla tego gatunku.
-                    Dodaj plik <strong>data/reference/known_range_cells.csv</strong> z kolumnami:
-                    <strong>scientific_name</strong>, <strong>cell_id</strong>,
-                    <strong>center_latitude</strong>, <strong>center_longitude</strong>, <strong>source</strong>.
-                </p>
-                <p>
-                    Oficjalnym źródłem do tego porównania jest EBBA2: 50-km occurrence maps pokazują obecność
-                    gatunku jako lęgowego w komórkach atlasowych. Po dodaniu tych danych dashboard automatycznie
-                    policzy punkty GBIF znajdujące się w znanym zasięgu i poza nim.
+                    Mapa pokazuje punkty GBIF dla wyboru: <strong>{escape(years_label)}</strong>.
+                    Warstwa zasięgu pojawi się po dodaniu komórek referencyjnych do
+                    <strong>data/reference/known_range_cells.csv</strong>.
                 </p>
                 <div class="comparison-grid">
                     <div class="comparison-stat">
@@ -2069,10 +2068,6 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             </div>
             """,
             unsafe_allow_html=True,
-        )
-        st.plotly_chart(
-            build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
-            width="stretch",
         )
         render_insight_grid(
             "Punkty GBIF pokazują miejsca zgłoszonych obserwacji, a nie kompletny zasięg biologiczny gatunku.",
@@ -2094,22 +2089,19 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     matched_label = f"{matched_count:,}".replace(",", " ")
     outside_label = f"{outside_count:,}".replace(",", " ")
 
+    st.plotly_chart(
+        build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
+        width="stretch",
+    )
     st.markdown(
         f"""
         <div class="comparison-panel">
             <div class="comparison-kicker">Porównanie zasięgu</div>
             <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
             <p>
-                Dla wyboru: <strong>{escape(years_label)}</strong> porównuję punkty obserwacji GBIF z komórkami
-                referencyjnymi zasięgu lęgowego. Źródło warstwy: <strong>{escape(range_source)}</strong>.
-                Jasnoniebieskie kwadraty na mapie pokazują komórki znanego lub przybliżonego występowania gatunku.
-                Punkt uznaję za zgodny ze znanym zasięgiem, jeśli znajduje się maksymalnie
-                {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka zajętej komórki referencyjnej.
-            </p>
-            <p>
-                To nadal jest porównanie przybliżone, bo warstwa referencyjna pracuje na komórkach przestrzennych,
-                a GBIF zawiera punkty zgłoszonych obserwacji. Wynik jest jednak oparty na osobnej warstwie zasięgu,
-                a nie na samych punktach GBIF.
+                Źródło warstwy: <strong>{escape(range_source)}</strong>. Jasnoniebieskie kwadraty pokazują komórki
+                znanego/przybliżonego zasięgu. Punkt uznaję za zgodny, jeśli leży do
+                {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka komórki.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
@@ -2129,10 +2121,6 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
         """,
         unsafe_allow_html=True,
     )
-    st.plotly_chart(
-        build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
-        width="stretch",
-    )
 
     render_insight_grid(
         "Komórki referencyjne oznaczają znany lub przybliżony zasięg lęgowy, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
@@ -2150,6 +2138,9 @@ def render_summary_view(species, species_panel: pd.DataFrame, species_trend: pd.
         "Dane populacyjne pochodzą z Europejskiego Monitoringu Ptaków (PECBMS), natomiast dane GBIF "
         "służą tutaj jako przybliżenie zmian zasięgu obserwacji. Najlepiej interpretować je razem, a nie osobno."
     )
+
+    st.subheader("Najważniejsze miary")
+    render_metric_grid(calculate_dashboard_metrics(species_panel))
 
     render_correlation_takeaway(species, species_panel)
 
@@ -2309,9 +2300,6 @@ def main() -> None:
         st.stop()
 
     render_selected_species_banner(selected_config)
-
-    metrics = calculate_dashboard_metrics(species_panel)
-    render_metric_grid(metrics)
 
     selected_chart = render_chart_buttons()
     all_years = available_years(species_panel)
