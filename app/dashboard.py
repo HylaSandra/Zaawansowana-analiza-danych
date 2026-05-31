@@ -1360,8 +1360,15 @@ def build_known_range_comparison_figure(
     years_label: str,
 ) -> go.Figure:
     figure = go.Figure()
+    has_known_range = not known_range_cells.empty
+    display_frame = points.copy()
+    if not display_frame.empty and "known_range_match" not in display_frame.columns:
+        display_frame["known_range_match"] = False
+    for column in ("nearest_known_range_km", "nearest_known_range_cell"):
+        if not display_frame.empty and column not in display_frame.columns:
+            display_frame[column] = pd.NA
 
-    if not known_range_cells.empty:
+    if has_known_range:
         figure.add_trace(
             go.Scattergeo(
                 lon=known_range_cells["center_longitude"],
@@ -1379,14 +1386,18 @@ def build_known_range_comparison_figure(
             )
         )
 
-    if not points.empty:
-        inside_points = points[points["known_range_match"]].copy()
-        outside_points = points[~points["known_range_match"]].copy()
+    if not display_frame.empty:
+        if has_known_range:
+            point_layers = (
+                (display_frame[~display_frame["known_range_match"]].copy(), "Punkty poza znanym zasięgiem", "#A7B0BA", 0.72),
+                (display_frame[display_frame["known_range_match"]].copy(), "Punkty w znanym zasięgu", ACCENT_BLUE, 0.78),
+            )
+        else:
+            point_layers = (
+                (display_frame, "Punkty GBIF (brak warstwy zasięgu)", ACCENT_BLUE, 0.72),
+            )
 
-        for display_points, name, color, opacity in (
-            (outside_points, "Punkty poza znanym zasięgiem", "#A7B0BA", 0.72),
-            (inside_points, "Punkty w znanym zasięgu", ACCENT_BLUE, 0.78),
-        ):
+        for display_points, name, color, opacity in point_layers:
             if display_points.empty:
                 continue
             hover_data = display_points[
@@ -1416,6 +1427,16 @@ def build_known_range_comparison_figure(
                     name=name,
                 )
             )
+    else:
+        figure.add_annotation(
+            text="Brak punktów GBIF dla wybranych lat.",
+            x=0.5,
+            y=0.5,
+            xref="paper",
+            yref="paper",
+            showarrow=False,
+            font={"color": TEXT_BLUE, "size": 18},
+        )
 
     figure.update_geos(
         projection_type="natural earth",
@@ -1945,6 +1966,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     records_label = f"{records_count:,}".replace(",", " ")
 
     if known_range_cells.empty:
+        classified_points = classify_points_against_known_range(year_points, known_range_cells)
         st.markdown(
             f"""
             <div class="comparison-panel">
@@ -1979,6 +2001,10 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             </div>
             """,
             unsafe_allow_html=True,
+        )
+        st.plotly_chart(
+            build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
+            width="stretch",
         )
         render_insight_grid(
             "Punkty GBIF pokazują miejsca zgłoszonych obserwacji, a nie kompletny zasięg biologiczny gatunku.",
