@@ -84,7 +84,6 @@ CHART_OPTIONS = {
 
 MAP_POINTS_PATH = PROCESSED_DIR / "occurrence_map_points.csv"
 KNOWN_RANGE_CELLS_PATH = DATA_DIR / "reference" / "known_range_cells.csv"
-KNOWN_RANGE_MATCH_RADIUS_KM = 36.0
 KNOWN_RANGE_CELL_LAT_SPAN = 0.5
 KNOWN_RANGE_CELL_LON_SPAN = 0.75
 OCCURRENCE_POINT_COLUMNS = [
@@ -792,6 +791,12 @@ def format_signed(value: float | None, suffix: str = "") -> str:
     return f"{sign}{value:.2f}".replace(".", ",") + suffix
 
 
+def format_count(value: int | float | None) -> str:
+    if value is None or pd.isna(value):
+        return "brak danych"
+    return f"{int(value):,}".replace(",", " ")
+
+
 def format_p_value(value: float | None) -> str:
     if value is None or pd.isna(value):
         return "brak danych"
@@ -930,7 +935,17 @@ def format_year_selection(years: list[int], all_years: list[int]) -> str:
 
 def empty_known_range_cells() -> pd.DataFrame:
     return pd.DataFrame(
-        columns=["scientific_name", "cell_id", "center_latitude", "center_longitude", "source"]
+        columns=[
+            "scientific_name",
+            "cell_id",
+            "center_latitude",
+            "center_longitude",
+            "south_latitude",
+            "north_latitude",
+            "west_longitude",
+            "east_longitude",
+            "source",
+        ]
     )
 
 
@@ -954,6 +969,10 @@ def load_known_range_cells(scientific_name: str) -> pd.DataFrame:
     species_column = pick_first_column(frame, ["scientific_name", "species", "taxon", "sci_name", "binomial"])
     latitude_column = pick_first_column(frame, ["center_latitude", "latitude", "lat", "decimal_latitude"])
     longitude_column = pick_first_column(frame, ["center_longitude", "longitude", "lon", "lng", "decimal_longitude"])
+    south_column = pick_first_column(frame, ["south_latitude", "min_latitude", "min_lat", "south", "ymin"])
+    north_column = pick_first_column(frame, ["north_latitude", "max_latitude", "max_lat", "north", "ymax"])
+    west_column = pick_first_column(frame, ["west_longitude", "min_longitude", "min_lon", "west", "xmin"])
+    east_column = pick_first_column(frame, ["east_longitude", "max_longitude", "max_lon", "east", "xmax"])
     cell_column = pick_first_column(frame, ["cell_id", "square_id", "square", "utm_square", "grid_cell_id"])
     source_column = pick_first_column(frame, ["source", "data_source"])
 
@@ -969,83 +988,79 @@ def load_known_range_cells(scientific_name: str) -> pd.DataFrame:
             "source": frame[source_column] if source_column else "EBBA2 50-km occurrence",
         }
     )
+    if south_column and north_column and west_column and east_column:
+        normalized["south_latitude"] = pd.to_numeric(frame[south_column], errors="coerce")
+        normalized["north_latitude"] = pd.to_numeric(frame[north_column], errors="coerce")
+        normalized["west_longitude"] = pd.to_numeric(frame[west_column], errors="coerce")
+        normalized["east_longitude"] = pd.to_numeric(frame[east_column], errors="coerce")
+    else:
+        normalized["south_latitude"] = normalized["center_latitude"] - KNOWN_RANGE_CELL_LAT_SPAN / 2
+        normalized["north_latitude"] = normalized["center_latitude"] + KNOWN_RANGE_CELL_LAT_SPAN / 2
+        normalized["west_longitude"] = normalized["center_longitude"] - KNOWN_RANGE_CELL_LON_SPAN / 2
+        normalized["east_longitude"] = normalized["center_longitude"] + KNOWN_RANGE_CELL_LON_SPAN / 2
+
     normalized["scientific_name"] = normalized["scientific_name"].astype(str).str.strip()
     normalized = normalized[normalized["scientific_name"] == scientific_name].copy()
-    normalized = normalized.dropna(subset=["center_latitude", "center_longitude"])
+    normalized = normalized.dropna(
+        subset=[
+            "center_latitude",
+            "center_longitude",
+            "south_latitude",
+            "north_latitude",
+            "west_longitude",
+            "east_longitude",
+        ]
+    )
     return normalized.reset_index(drop=True)
-
-
-def haversine_distance_km(
-    latitude: float,
-    longitude: float,
-    candidate_latitudes: np.ndarray,
-    candidate_longitudes: np.ndarray,
-) -> np.ndarray:
-    earth_radius_km = 6371.0088
-    lat1 = np.radians(latitude)
-    lon1 = np.radians(longitude)
-    lat2 = np.radians(candidate_latitudes)
-    lon2 = np.radians(candidate_longitudes)
-    delta_lat = lat2 - lat1
-    delta_lon = lon2 - lon1
-    a = np.sin(delta_lat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(delta_lon / 2) ** 2
-    return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
 
 
 def classify_points_against_known_range(
     points: pd.DataFrame,
     known_range_cells: pd.DataFrame,
-    radius_km: float = KNOWN_RANGE_MATCH_RADIUS_KM,
 ) -> pd.DataFrame:
     classified = points.copy()
     classified["known_range_match"] = False
-    classified["nearest_known_range_km"] = pd.NA
-    classified["nearest_known_range_cell"] = pd.NA
+    classified["matched_known_range_cell"] = pd.NA
 
     if classified.empty or known_range_cells.empty:
         return classified
 
     bin_size = 1.0
-    spatial_index: dict[tuple[int, int], list[tuple[float, float, str]]] = {}
+    spatial_index: dict[tuple[int, int], list[tuple[float, float, float, float, str]]] = {}
     for row in known_range_cells.itertuples(index=False):
-        lat_bin = int(np.floor(float(row.center_latitude) / bin_size))
-        lon_bin = int(np.floor(float(row.center_longitude) / bin_size))
-        spatial_index.setdefault((lat_bin, lon_bin), []).append(
-            (float(row.center_latitude), float(row.center_longitude), str(row.cell_id))
-        )
+        south = float(row.south_latitude)
+        north = float(row.north_latitude)
+        west = float(row.west_longitude)
+        east = float(row.east_longitude)
+        lat_bins = range(int(np.floor(south / bin_size)), int(np.floor(north / bin_size)) + 1)
+        lon_bins = range(int(np.floor(west / bin_size)), int(np.floor(east / bin_size)) + 1)
+        cell = (south, north, west, east, str(row.cell_id))
+        for lat_bin in lat_bins:
+            for lon_bin in lon_bins:
+                spatial_index.setdefault((lat_bin, lon_bin), []).append(cell)
 
     matches: list[bool] = []
-    distances: list[float | None] = []
-    nearest_cells: list[str | None] = []
+    matched_cells: list[str | None] = []
 
     for point in classified.itertuples(index=False):
         latitude = float(point.decimal_latitude)
         longitude = float(point.decimal_longitude)
         lat_bin = int(np.floor(latitude / bin_size))
         lon_bin = int(np.floor(longitude / bin_size))
-        candidates: list[tuple[float, float, str]] = []
-        for lat_offset in range(-1, 2):
-            for lon_offset in range(-2, 3):
-                candidates.extend(spatial_index.get((lat_bin + lat_offset, lon_bin + lon_offset), []))
-
-        if not candidates:
-            matches.append(False)
-            distances.append(None)
-            nearest_cells.append(None)
-            continue
-
-        candidate_latitudes = np.array([candidate[0] for candidate in candidates], dtype=float)
-        candidate_longitudes = np.array([candidate[1] for candidate in candidates], dtype=float)
-        candidate_distances = haversine_distance_km(latitude, longitude, candidate_latitudes, candidate_longitudes)
-        nearest_index = int(candidate_distances.argmin())
-        nearest_distance = float(candidate_distances[nearest_index])
-        matches.append(nearest_distance <= radius_km)
-        distances.append(nearest_distance)
-        nearest_cells.append(candidates[nearest_index][2])
+        candidates = spatial_index.get((lat_bin, lon_bin), [])
+        matched_cell = next(
+            (
+                cell_id
+                for south, north, west, east, cell_id in candidates
+                if south <= latitude <= north and west <= longitude <= east
+            ),
+            None,
+        )
+        matches.append(matched_cell is not None)
+        matched_cells.append(matched_cell)
 
     classified["known_range_match"] = matches
-    classified["nearest_known_range_km"] = distances
-    classified["nearest_known_range_cell"] = nearest_cells
+    classified["matched_known_range_cell"] = matched_cells
     return classified
 
 
@@ -1450,7 +1465,7 @@ def build_known_range_comparison_figure(
     display_frame = points.copy()
     if not display_frame.empty and "known_range_match" not in display_frame.columns:
         display_frame["known_range_match"] = False
-    for column in ("nearest_known_range_km", "nearest_known_range_cell"):
+    for column in ("matched_known_range_cell",):
         if not display_frame.empty and column not in display_frame.columns:
             display_frame[column] = pd.NA
 
@@ -1495,7 +1510,7 @@ def build_known_range_comparison_figure(
             if display_points.empty:
                 continue
             hover_data = display_points[
-                ["year", "country_code", "month", "nearest_known_range_km", "nearest_known_range_cell"]
+                ["year", "country_code", "month", "matched_known_range_cell"]
             ].fillna("").astype(str).to_numpy()
             figure.add_trace(
                 go.Scattergeo(
@@ -1513,8 +1528,7 @@ def build_known_range_comparison_figure(
                         "Rok: %{customdata[0]}<br>"
                         "Kraj: %{customdata[1]}<br>"
                         "Miesiąc: %{customdata[2]}<br>"
-                        "Najbliższa komórka zasięgu: %{customdata[4]}<br>"
-                        "Odległość do komórki: %{customdata[3]} km<br>"
+                        "Komórka zasięgu: %{customdata[3]}<br>"
                         "Szerokość: %{lat:.2f}<br>"
                         "Długość: %{lon:.2f}<extra></extra>"
                     ),
@@ -1678,7 +1692,7 @@ def render_sidebar_glossary() -> None:
             <strong>Miesiące lęgowe</strong> - kwiecień-lipiec.<br>
             <strong>Okres bazowy klimatu</strong> - 1991-2020.<br>
             <strong>Pola siatki</strong> - 1° x 1° dla metryk zasięgu obserwacji.<br>
-            <strong>Zgodność z zasięgiem</strong> - punkt do 36 km od komórki referencyjnej.<br>
+            <strong>Zgodność z zasięgiem</strong> - punkt wewnątrz granic komórki referencyjnej.<br>
             <strong>Wartość p</strong> - informacja, czy wynik testu statystycznego jest istotny.<br>
             <strong>Uwaga</strong> - GBIF pokazuje obserwacje, a nie liczebność populacji.
         </div>
@@ -2069,7 +2083,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
         if not classified_points.empty and "country_code" in classified_points.columns
         else 0
     )
-    records_label = f"{records_count:,}".replace(",", " ")
+    records_label = format_count(records_count)
 
     if known_range_cells.empty:
         st.plotly_chart(
@@ -2121,8 +2135,9 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     matched_pct = (matched_count / records_count * 100) if records_count else 0
     outside_pct = (outside_count / records_count * 100) if records_count else 0
     range_cells_count = len(known_range_cells)
-    matched_label = f"{matched_count:,}".replace(",", " ")
-    outside_label = f"{outside_count:,}".replace(",", " ")
+    matched_label = format_count(matched_count)
+    outside_label = format_count(outside_count)
+    range_cells_label = format_count(range_cells_count)
 
     st.plotly_chart(
         build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
@@ -2135,8 +2150,8 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
             <p>
                 Źródło warstwy: <strong>{escape(range_source)}</strong>. Jasnoniebieskie kwadraty pokazują komórki
-                znanego/przybliżonego zasięgu. Punkt uznaję za zgodny, jeśli leży do
-                {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka komórki.
+                znanego/przybliżonego zasięgu lęgowego, a nie dane z pojedynczego roku. Punkt uznaję za zgodny,
+                jeśli leży wewnątrz granic komórki referencyjnej.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
@@ -2148,8 +2163,8 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
                     <div class="comparison-stat-value">{outside_label} ({format_decimal(outside_pct, 1)}%)</div>
                 </div>
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Komórki zasięgu referencyjnego</div>
-                    <div class="comparison-stat-value">{range_cells_count}</div>
+                    <div class="comparison-stat-label">Liczba komórek zasięgu</div>
+                    <div class="comparison-stat-value">{range_cells_label} komórek</div>
                 </div>
             </div>
         </div>

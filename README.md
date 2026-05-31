@@ -55,7 +55,7 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
 - `src/climate_birds/processing.py` - agregacja i łączenie danych
 - `src/climate_birds/statistics.py` - statystyki i testy
 - `data/processed/occurrence_map_points.csv` - przetworzone punkty GBIF używane przez mapę obserwacji
-- `data/reference/known_range_cells.csv` - referencyjne komórki zasięgu używane w porównaniu; obecnie przybliżona siatka 50-km-ish, możliwa do zastąpienia oryginalnym EBBA2 50-km occurrence data
+- `data/reference/known_range_cells.csv` - referencyjne komórki zasięgu z granicami komórek używanymi do porównania punkt-w-komórce; obecnie przybliżona siatka 50-km-ish, możliwa do zastąpienia oryginalnym EBBA2 50-km occurrence data
 
 ## Jak uruchomić projekt lokalnie
 
