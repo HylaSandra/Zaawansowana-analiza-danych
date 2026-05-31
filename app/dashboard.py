@@ -85,6 +85,8 @@ CHART_OPTIONS = {
 MAP_POINTS_PATH = PROCESSED_DIR / "occurrence_map_points.csv"
 KNOWN_RANGE_CELLS_PATH = DATA_DIR / "reference" / "known_range_cells.csv"
 KNOWN_RANGE_MATCH_RADIUS_KM = 36.0
+KNOWN_RANGE_CELL_LAT_SPAN = 0.5
+KNOWN_RANGE_CELL_LON_SPAN = 0.75
 OCCURRENCE_POINT_COLUMNS = [
     "gbif_id",
     "decimal_latitude",
@@ -1031,6 +1033,47 @@ def load_known_range_comparison_data(
     return classified_points, known_range_cells
 
 
+@st.cache_data(show_spinner=False)
+def build_known_range_geojson(known_range_cells: pd.DataFrame) -> dict:
+    features = []
+    lat_half = KNOWN_RANGE_CELL_LAT_SPAN / 2
+    lon_half = KNOWN_RANGE_CELL_LON_SPAN / 2
+
+    for row in known_range_cells.itertuples(index=False):
+        center_latitude = float(row.center_latitude)
+        center_longitude = float(row.center_longitude)
+        west = center_longitude - lon_half
+        east = center_longitude + lon_half
+        south = center_latitude - lat_half
+        north = center_latitude + lat_half
+        cell_id = str(row.cell_id)
+        source = str(row.source)
+        features.append(
+            {
+                "type": "Feature",
+                "id": cell_id,
+                "properties": {
+                    "cell_id": cell_id,
+                    "source": source,
+                },
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [west, south],
+                            [east, south],
+                            [east, north],
+                            [west, north],
+                            [west, south],
+                        ]
+                    ],
+                },
+            }
+        )
+
+    return {"type": "FeatureCollection", "features": features}
+
+
 def translate_trend_classification(value: str | None) -> str:
     if value is None or pd.isna(value):
         return "brak klasyfikacji"
@@ -1385,25 +1428,27 @@ def build_known_range_comparison_figure(
             display_frame[column] = pd.NA
 
     if has_known_range:
+        known_range_geojson = build_known_range_geojson(known_range_cells)
         known_range_hover = known_range_cells[["cell_id", "source"]].fillna("").astype(str).to_numpy()
         figure.add_trace(
-            go.Scattergeo(
-                lon=known_range_cells["center_longitude"],
-                lat=known_range_cells["center_latitude"],
-                mode="markers",
+            go.Choropleth(
+                geojson=known_range_geojson,
+                locations=known_range_cells["cell_id"].astype(str),
+                z=[1] * len(known_range_cells),
+                featureidkey="properties.cell_id",
                 customdata=known_range_hover,
-                marker={
-                    "size": 9,
-                    "opacity": 0.34,
-                    "color": PRIMARY_BLUE,
-                    "line": {"width": 0},
-                },
+                colorscale=[
+                    [0, "rgba(143, 211, 255, 0.22)"],
+                    [1, "rgba(143, 211, 255, 0.22)"],
+                ],
+                marker_line_color="rgba(221, 242, 255, 0.28)",
+                marker_line_width=0.25,
+                showscale=False,
                 name=f"Znany zasięg: {range_source}",
                 hovertemplate=(
                     "Komórka: %{customdata[0]}<br>"
                     "Źródło: %{customdata[1]}<br>"
-                    "Szerokość: %{lat:.2f}<br>"
-                    "Długość: %{lon:.2f}<extra></extra>"
+                    "Warstwa zasięgu<extra></extra>"
                 ),
             )
         )
@@ -2057,6 +2102,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             <p>
                 Dla wyboru: <strong>{escape(years_label)}</strong> porównuję punkty obserwacji GBIF z komórkami
                 referencyjnymi zasięgu lęgowego. Źródło warstwy: <strong>{escape(range_source)}</strong>.
+                Błękitne wypełnienie na mapie pokazuje obszar znanego lub przybliżonego występowania gatunku.
                 Punkt uznaję za zgodny ze znanym zasięgiem, jeśli znajduje się maksymalnie
                 {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka zajętej komórki referencyjnej.
             </p>
