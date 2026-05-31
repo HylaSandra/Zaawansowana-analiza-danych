@@ -55,7 +55,7 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
 - `src/climate_birds/processing.py` - agregacja i łączenie danych
 - `src/climate_birds/statistics.py` - statystyki i testy
 - `data/processed/occurrence_map_points.csv` - przetworzone punkty GBIF używane przez mapę obserwacji
-- `data/reference/known_range_cells.csv` - referencyjne komórki znanego zasięgu, np. z EBBA2 50-km occurrence data
+- `data/reference/known_range_cells.csv` - referencyjne komórki zasięgu używane w porównaniu; obecnie przybliżona siatka 50-km-ish, możliwa do zastąpienia oryginalnym EBBA2 50-km occurrence data
 
 ## Jak uruchomić projekt lokalnie
 
@@ -83,6 +83,6 @@ python -m streamlit run app/dashboard.py
 
 - dane `GBIF` są wrażliwe na wysiłek obserwacyjny,
 - mapa pokazuje wszystkie punkty zapisane w używanym zbiorze GBIF dla wybranych lat,
-- porównanie zasięgu wykorzystuje siatkę referencyjną 50 km, więc jest przybliżeniem przestrzennym, a nie oceną punkt w poligonie w wysokiej rozdzielczości,
+- porównanie zasięgu wykorzystuje przybliżoną siatkę referencyjną 50-km-ish, więc jest demonstracją zgodności przestrzennej, a nie oceną punkt w poligonie w wysokiej rozdzielczości,
 - indeks klimatu dla Europy jest tu budowany jako agregat dla reprezentatywnych punktów,
 - projekt pokazuje związek statystyczny, a nie twardą zależność przyczynową.

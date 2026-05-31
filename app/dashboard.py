@@ -1020,6 +1020,17 @@ def classify_points_against_known_range(
     return classified
 
 
+@st.cache_data(show_spinner=False)
+def load_known_range_comparison_data(
+    scientific_name: str,
+    years: tuple[int, ...],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    year_points = load_occurrence_points(scientific_name, years)
+    known_range_cells = load_known_range_cells(scientific_name)
+    classified_points = classify_points_against_known_range(year_points, known_range_cells)
+    return classified_points, known_range_cells
+
+
 def translate_trend_classification(value: str | None) -> str:
     if value is None or pd.isna(value):
         return "brak klasyfikacji"
@@ -1361,6 +1372,11 @@ def build_known_range_comparison_figure(
 ) -> go.Figure:
     figure = go.Figure()
     has_known_range = not known_range_cells.empty
+    range_source = (
+        str(known_range_cells["source"].dropna().iloc[0])
+        if has_known_range and "source" in known_range_cells.columns and not known_range_cells["source"].dropna().empty
+        else "warstwa referencyjna"
+    )
     display_frame = points.copy()
     if not display_frame.empty and "known_range_match" not in display_frame.columns:
         display_frame["known_range_match"] = False
@@ -1369,20 +1385,26 @@ def build_known_range_comparison_figure(
             display_frame[column] = pd.NA
 
     if has_known_range:
+        known_range_hover = known_range_cells[["cell_id", "source"]].fillna("").astype(str).to_numpy()
         figure.add_trace(
             go.Scattergeo(
                 lon=known_range_cells["center_longitude"],
                 lat=known_range_cells["center_latitude"],
                 mode="markers",
+                customdata=known_range_hover,
                 marker={
                     "size": 9,
                     "opacity": 0.34,
                     "color": PRIMARY_BLUE,
                     "line": {"width": 0},
                 },
-                text=known_range_cells["cell_id"].fillna("").astype(str),
-                name="Znany zasięg EBBA2",
-                hovertemplate="Komórka EBBA2: %{text}<br>Szerokość: %{lat:.2f}<br>Długość: %{lon:.2f}<extra></extra>",
+                name=f"Znany zasięg: {range_source}",
+                hovertemplate=(
+                    "Komórka: %{customdata[0]}<br>"
+                    "Źródło: %{customdata[1]}<br>"
+                    "Szerokość: %{lat:.2f}<br>"
+                    "Długość: %{lon:.2f}<extra></extra>"
+                ),
             )
         )
 
@@ -1419,7 +1441,7 @@ def build_known_range_comparison_figure(
                         "Rok: %{customdata[0]}<br>"
                         "Kraj: %{customdata[1]}<br>"
                         "Miesiąc: %{customdata[2]}<br>"
-                        "Najbliższa komórka EBBA2: %{customdata[4]}<br>"
+                        "Najbliższa komórka zasięgu: %{customdata[4]}<br>"
                         "Odległość do komórki: %{customdata[3]} km<br>"
                         "Szerokość: %{lat:.2f}<br>"
                         "Długość: %{lon:.2f}<extra></extra>"
@@ -1954,19 +1976,20 @@ def render_chart_insights(chart_key: str, frame: pd.DataFrame) -> None:
 
 def render_known_range_comparison(species, selected_years: list[int], all_years: list[int]) -> None:
     years_label = format_year_selection(selected_years, all_years)
-    year_points = load_occurrence_points(species.scientific_name, tuple(selected_years))
-    known_range_cells = load_known_range_cells(species.scientific_name)
-    records_count = len(year_points)
-    years_count = year_points["year"].nunique() if not year_points.empty and "year" in year_points.columns else 0
+    classified_points, known_range_cells = load_known_range_comparison_data(
+        species.scientific_name,
+        tuple(selected_years),
+    )
+    records_count = len(classified_points)
+    years_count = classified_points["year"].nunique() if not classified_points.empty and "year" in classified_points.columns else 0
     countries_count = (
-        year_points["country_code"].nunique()
-        if not year_points.empty and "country_code" in year_points.columns
+        classified_points["country_code"].nunique()
+        if not classified_points.empty and "country_code" in classified_points.columns
         else 0
     )
     records_label = f"{records_count:,}".replace(",", " ")
 
     if known_range_cells.empty:
-        classified_points = classify_points_against_known_range(year_points, known_range_cells)
         st.markdown(
             f"""
             <div class="comparison-panel">
@@ -2013,7 +2036,11 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
         )
         return
 
-    classified_points = classify_points_against_known_range(year_points, known_range_cells)
+    range_source = (
+        str(known_range_cells["source"].dropna().iloc[0])
+        if "source" in known_range_cells.columns and not known_range_cells["source"].dropna().empty
+        else "warstwa referencyjna"
+    )
     matched_count = int(classified_points["known_range_match"].sum()) if not classified_points.empty else 0
     outside_count = records_count - matched_count
     matched_pct = (matched_count / records_count * 100) if records_count else 0
@@ -2029,13 +2056,14 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
             <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
             <p>
                 Dla wyboru: <strong>{escape(years_label)}</strong> porównuję punkty obserwacji GBIF z komórkami
-                referencyjnymi zasięgu lęgowego. Punkt uznaję za zgodny ze znanym zasięgiem, jeśli znajduje się
-                maksymalnie {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka zajętej komórki EBBA2.
+                referencyjnymi zasięgu lęgowego. Źródło warstwy: <strong>{escape(range_source)}</strong>.
+                Punkt uznaję za zgodny ze znanym zasięgiem, jeśli znajduje się maksymalnie
+                {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka zajętej komórki referencyjnej.
             </p>
             <p>
-                To nadal jest porównanie przybliżone, bo EBBA2 pracuje na siatce 50 km, a GBIF zawiera punkty
-                zgłoszonych obserwacji. Wynik jest jednak oparty na niezależnym źródle atlasowym, a nie na samych
-                punktach GBIF.
+                To nadal jest porównanie przybliżone, bo warstwa referencyjna pracuje na komórkach przestrzennych,
+                a GBIF zawiera punkty zgłoszonych obserwacji. Wynik jest jednak oparty na osobnej warstwie zasięgu,
+                a nie na samych punktach GBIF.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
@@ -2061,7 +2089,7 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     )
 
     render_insight_grid(
-        "Komórki EBBA2 oznaczają znany zasięg lęgowy w siatce 50 km, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
+        "Komórki referencyjne oznaczają znany lub przybliżony zasięg lęgowy, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
         (
             f"W wybranych latach {format_decimal(matched_pct, 1)}% punktów GBIF leży w pobliżu komórek znanego zasięgu, "
             f"a {format_decimal(outside_pct, 1)}% poza nimi."
