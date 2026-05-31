@@ -15,7 +15,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from climate_birds.config import PROCESSED_DIR, RAW_DIR, SELECTED_SPECIES
+from climate_birds.config import DATA_DIR, PROCESSED_DIR, RAW_DIR, SELECTED_SPECIES
 from climate_birds.data_sources.gbif import fetch_occurrences
 from climate_birds.processing import calculate_dashboard_metrics
 from climate_birds.statistics import correlation_tests, linear_trend_test, period_comparison, stationarity_test
@@ -25,14 +25,14 @@ st.set_page_config(page_title="Birds and Climate Dashboard", layout="wide")
 PRIMARY_BLUE = "#8FD3FF"
 SECONDARY_BLUE = "#DDF2FF"
 ACCENT_BLUE = "#4FA9E8"
-TEXT_BLUE = "#DDF2FF"
-GRID_BLUE = "rgba(143, 211, 255, 0.16)"
-APP_BG = "#030712"
-SIDEBAR_BG = "#050B16"
-PANEL_BG = "rgba(7, 17, 31, 0.92)"
-CARD_BG = "rgba(8, 22, 38, 0.90)"
-PLOT_BG = "rgba(3, 10, 20, 0.98)"
-MUTED_TEXT = "#9BB7CC"
+TEXT_BLUE = "#E5E7EB"
+GRID_BLUE = "rgba(143, 211, 255, 0.14)"
+APP_BG = "#0B0C0F"
+SIDEBAR_BG = "#111318"
+PANEL_BG = "rgba(22, 24, 30, 0.94)"
+CARD_BG = "rgba(27, 30, 37, 0.92)"
+PLOT_BG = "rgba(14, 16, 20, 0.98)"
+MUTED_TEXT = "#A7B0BA"
 SUCCESS_BLUE = "#A8E6FF"
 
 PANEL_NUMERIC_COLUMNS = [
@@ -83,6 +83,8 @@ CHART_OPTIONS = {
 }
 
 MAP_POINTS_PATH = PROCESSED_DIR / "occurrence_map_points.csv"
+KNOWN_RANGE_CELLS_PATH = DATA_DIR / "reference" / "known_range_cells.csv"
+KNOWN_RANGE_MATCH_RADIUS_KM = 36.0
 OCCURRENCE_POINT_COLUMNS = [
     "gbif_id",
     "decimal_latitude",
@@ -100,12 +102,12 @@ def inject_custom_styles() -> None:
         <style>
         .stApp {{
             background:
-                radial-gradient(circle at 18% 8%, rgba(79, 169, 232, 0.12), transparent 28rem),
-                linear-gradient(180deg, {APP_BG} 0%, #05101D 52%, #030712 100%);
+                radial-gradient(circle at 18% 8%, rgba(143, 211, 255, 0.10), transparent 28rem),
+                linear-gradient(180deg, {APP_BG} 0%, #14161B 54%, #090A0D 100%);
             color: {TEXT_BLUE};
         }}
         header[data-testid="stHeader"] {{
-            background: rgba(3, 7, 18, 0.96);
+            background: rgba(11, 12, 15, 0.96);
             border-bottom: 1px solid rgba(143, 211, 255, 0.10);
         }}
         div[data-testid="stToolbar"] {{
@@ -118,7 +120,7 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stToolbar"] button,
         div[data-testid="stSidebarCollapsedControl"] button {{
-            background: linear-gradient(180deg, rgba(7, 17, 31, 0.96), rgba(10, 28, 48, 0.96)) !important;
+            background: linear-gradient(180deg, rgba(29, 32, 39, 0.96), rgba(18, 20, 25, 0.96)) !important;
             color: {SECONDARY_BLUE} !important;
             border: 1px solid rgba(143, 211, 255, 0.62) !important;
             border-radius: 999px !important;
@@ -127,7 +129,7 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stToolbar"] button:hover,
         div[data-testid="stSidebarCollapsedControl"] button:hover {{
-            background: linear-gradient(180deg, rgba(15, 44, 69, 0.98), rgba(9, 31, 50, 0.98)) !important;
+            background: linear-gradient(180deg, rgba(39, 44, 53, 0.98), rgba(24, 27, 33, 0.98)) !important;
             border-color: rgba(221, 242, 255, 0.95) !important;
             color: #F7FCFF !important;
         }}
@@ -150,7 +152,7 @@ def inject_custom_styles() -> None:
         }}
         section[data-testid="stSidebar"] {{
             background:
-                linear-gradient(180deg, rgba(7, 17, 31, 0.95) 0%, {SIDEBAR_BG} 100%);
+                linear-gradient(180deg, rgba(24, 27, 33, 0.96) 0%, {SIDEBAR_BG} 100%);
             border-right: 1px solid rgba(143, 211, 255, 0.16);
         }}
         section[data-testid="stSidebar"] p,
@@ -190,7 +192,7 @@ def inject_custom_styles() -> None:
             color: {TEXT_BLUE};
         }}
         div.stButton > button {{
-            background: rgba(7, 17, 31, 0.92);
+            background: rgba(24, 27, 33, 0.92);
             color: {TEXT_BLUE};
             border: 1px solid rgba(143, 211, 255, 0.24);
             border-radius: 8px;
@@ -200,7 +202,7 @@ def inject_custom_styles() -> None:
             transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
         }}
         div.stButton > button:hover {{
-            background: rgba(15, 44, 69, 0.96);
+            background: rgba(34, 39, 47, 0.96);
             border-color: rgba(143, 211, 255, 0.75);
             color: {SECONDARY_BLUE};
             box-shadow: 0 0 0 0.12rem rgba(143, 211, 255, 0.12), 0 0.8rem 2rem rgba(79, 169, 232, 0.16);
@@ -213,26 +215,26 @@ def inject_custom_styles() -> None:
             outline: none;
         }}
         div.stButton > button[kind="primary"] {{
-            background: linear-gradient(180deg, rgba(24, 78, 116, 0.95), rgba(9, 31, 50, 0.95));
+            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96));
             border-color: rgba(143, 211, 255, 0.82);
             box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0 1.35rem rgba(79, 169, 232, 0.14);
         }}
         button[kind="pillsActive"],
         button[data-testid="stBaseButton-pillsActive"] {{
-            background: linear-gradient(180deg, rgba(24, 78, 116, 0.95), rgba(9, 31, 50, 0.95)) !important;
+            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96)) !important;
             border-color: rgba(143, 211, 255, 0.82) !important;
             color: {TEXT_BLUE} !important;
             box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0 1.35rem rgba(79, 169, 232, 0.14) !important;
         }}
         button[kind="pills"],
         button[data-testid="stBaseButton-pills"] {{
-            background: rgba(7, 17, 31, 0.92) !important;
+            background: rgba(24, 27, 33, 0.92) !important;
             border-color: rgba(143, 211, 255, 0.24) !important;
             color: {TEXT_BLUE} !important;
         }}
         button[kind="pills"]:hover,
         button[data-testid="stBaseButton-pills"]:hover {{
-            background: rgba(15, 44, 69, 0.96) !important;
+            background: rgba(34, 39, 47, 0.96) !important;
             border-color: rgba(143, 211, 255, 0.70) !important;
         }}
         div[role="radiogroup"]:has(button[kind^="pills"]),
@@ -282,7 +284,7 @@ def inject_custom_styles() -> None:
         }}
         button[aria-pressed="true"],
         button[aria-selected="true"] {{
-            background: linear-gradient(180deg, rgba(24, 78, 116, 0.95), rgba(9, 31, 50, 0.95)) !important;
+            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96)) !important;
             border-color: rgba(143, 211, 255, 0.82) !important;
             color: {TEXT_BLUE} !important;
             box-shadow: inset 0 0 0 1px rgba(221, 242, 255, 0.08), 0 0 1.35rem rgba(79, 169, 232, 0.14) !important;
@@ -298,7 +300,7 @@ def inject_custom_styles() -> None:
             padding: 1rem 1rem 0.9rem 1rem;
             border: 1px solid rgba(143, 211, 255, 0.22);
             border-radius: 8px;
-            background: linear-gradient(135deg, rgba(8, 22, 38, 0.92), rgba(4, 12, 24, 0.88));
+            background: linear-gradient(135deg, rgba(27, 30, 37, 0.94), rgba(14, 16, 20, 0.92));
             box-shadow: 0 1rem 2.3rem rgba(0, 0, 0, 0.14);
         }}
         div[data-testid="stForm"] label p {{
@@ -306,7 +308,7 @@ def inject_custom_styles() -> None:
             font-weight: 800 !important;
         }}
         div[data-testid="stForm"] div[data-baseweb="select"] > div {{
-            background: rgba(7, 17, 31, 0.96) !important;
+            background: rgba(19, 22, 27, 0.96) !important;
             border: 1px solid rgba(143, 211, 255, 0.26) !important;
             border-radius: 8px !important;
             color: {TEXT_BLUE} !important;
@@ -317,7 +319,7 @@ def inject_custom_styles() -> None:
         }}
         div[data-testid="stForm"] div[data-baseweb="tag"],
         div[data-testid="stForm"] span[data-baseweb="tag"] {{
-            background: rgba(24, 78, 116, 0.88) !important;
+            background: rgba(49, 63, 74, 0.92) !important;
             border: 1px solid rgba(143, 211, 255, 0.30) !important;
             border-radius: 999px !important;
             color: {TEXT_BLUE} !important;
@@ -325,7 +327,7 @@ def inject_custom_styles() -> None:
         div[data-testid="stFormSubmitButton"] button {{
             width: 100% !important;
             min-height: 2.85rem !important;
-            background: linear-gradient(180deg, rgba(24, 78, 116, 0.95), rgba(9, 31, 50, 0.95)) !important;
+            background: linear-gradient(180deg, rgba(49, 63, 74, 0.96), rgba(22, 27, 34, 0.96)) !important;
             color: {TEXT_BLUE} !important;
             border: 1px solid rgba(143, 211, 255, 0.72) !important;
             border-radius: 8px !important;
@@ -333,7 +335,7 @@ def inject_custom_styles() -> None:
             font-weight: 800 !important;
         }}
         div[data-testid="stFormSubmitButton"] button:hover {{
-            background: linear-gradient(180deg, rgba(34, 94, 138, 0.98), rgba(12, 40, 64, 0.98)) !important;
+            background: linear-gradient(180deg, rgba(58, 73, 85, 0.98), rgba(29, 34, 42, 0.98)) !important;
             border-color: rgba(221, 242, 255, 0.94) !important;
             transform: translateY(-1px);
         }}
@@ -342,7 +344,7 @@ def inject_custom_styles() -> None:
             padding: 1rem;
             border: 1px solid rgba(143, 211, 255, 0.20);
             border-radius: 8px;
-            background: linear-gradient(135deg, rgba(8, 22, 38, 0.92), rgba(4, 12, 24, 0.88));
+            background: linear-gradient(135deg, rgba(27, 30, 37, 0.94), rgba(14, 16, 20, 0.92));
         }}
         .comparison-kicker {{
             color: {PRIMARY_BLUE};
@@ -372,7 +374,7 @@ def inject_custom_styles() -> None:
         .comparison-stat {{
             border: 1px solid rgba(143, 211, 255, 0.16);
             border-radius: 8px;
-            background: rgba(7, 17, 31, 0.72);
+            background: rgba(19, 22, 27, 0.78);
             padding: 0.75rem 0.85rem;
         }}
         .comparison-stat-label {{
@@ -429,7 +431,7 @@ def inject_custom_styles() -> None:
             padding: 0.9rem 1rem;
             border: 1px solid rgba(143, 211, 255, 0.18);
             border-radius: 8px;
-            background: linear-gradient(135deg, rgba(8, 22, 38, 0.92), rgba(4, 12, 24, 0.88));
+            background: linear-gradient(135deg, rgba(27, 30, 37, 0.94), rgba(14, 16, 20, 0.92));
             box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.16);
         }}
         .selected-thumb {{
@@ -501,7 +503,7 @@ def inject_custom_styles() -> None:
             overflow: hidden;
             border: 1px solid rgba(143, 211, 255, 0.20);
             border-radius: 8px;
-            background: rgba(7, 17, 31, 0.95);
+            background: rgba(19, 22, 27, 0.95);
             box-shadow: 0 1rem 2.6rem rgba(0, 0, 0, 0.26);
         }}
         .photo-card .bird-photo {{
@@ -514,7 +516,7 @@ def inject_custom_styles() -> None:
             content: "";
             position: absolute;
             inset: 0;
-            background: linear-gradient(180deg, transparent 42%, rgba(3, 7, 18, 0.88) 100%);
+            background: linear-gradient(180deg, transparent 42%, rgba(11, 12, 15, 0.88) 100%);
             pointer-events: none;
         }}
         .photo-meta {{
@@ -572,7 +574,7 @@ def inject_custom_styles() -> None:
             border: 1px solid rgba(143, 211, 255, 0.22);
             border-left: 4px solid {PRIMARY_BLUE};
             border-radius: 8px;
-            background: linear-gradient(135deg, rgba(8, 22, 38, 0.95), rgba(4, 12, 24, 0.95));
+            background: linear-gradient(135deg, rgba(27, 30, 37, 0.95), rgba(14, 16, 20, 0.95));
             box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.18);
         }}
         .takeaway-kicker {{
@@ -596,7 +598,7 @@ def inject_custom_styles() -> None:
             padding: 0.85rem 1rem;
             border: 1px solid rgba(143, 211, 255, 0.16);
             border-radius: 8px;
-            background: rgba(8, 22, 38, 0.78);
+            background: rgba(27, 30, 37, 0.78);
         }}
         .chart-description-title {{
             color: {PRIMARY_BLUE};
@@ -618,7 +620,7 @@ def inject_custom_styles() -> None:
             overflow-x: auto;
             border: 1px solid rgba(143, 211, 255, 0.16);
             border-radius: 8px;
-            background: rgba(3, 10, 20, 0.84);
+            background: rgba(14, 16, 20, 0.84);
             box-shadow: inset 0 1px 0 rgba(221, 242, 255, 0.04);
         }}
         table.dark-table {{
@@ -630,7 +632,7 @@ def inject_custom_styles() -> None:
         table.dark-table thead th {{
             position: sticky;
             top: 0;
-            background: rgba(8, 22, 38, 0.98);
+            background: rgba(27, 30, 37, 0.98);
             color: {PRIMARY_BLUE};
             border-bottom: 1px solid rgba(143, 211, 255, 0.20);
             font-weight: 750;
@@ -655,7 +657,7 @@ def inject_custom_styles() -> None:
             padding: 0.9rem;
             border: 1px solid rgba(143, 211, 255, 0.16);
             border-radius: 8px;
-            background: rgba(8, 22, 38, 0.72);
+            background: rgba(27, 30, 37, 0.72);
             color: {TEXT_BLUE};
             font-size: 0.84rem;
             line-height: 1.45;
@@ -698,8 +700,8 @@ def inject_species_background(species) -> None:
         <style>
         .stApp {{
             background:
-                linear-gradient(90deg, rgba(3, 7, 18, 0.98) 0%, rgba(3, 7, 18, 0.94) 42%, rgba(3, 7, 18, 0.88) 100%),
-                linear-gradient(180deg, rgba(3, 7, 18, 0.88), rgba(3, 7, 18, 0.98)),
+                linear-gradient(90deg, rgba(11, 12, 15, 0.98) 0%, rgba(11, 12, 15, 0.94) 42%, rgba(11, 12, 15, 0.88) 100%),
+                linear-gradient(180deg, rgba(11, 12, 15, 0.88), rgba(11, 12, 15, 0.98)),
                 url("{image_url}") center center / cover fixed !important;
         }}
         </style>
@@ -895,6 +897,127 @@ def format_year_selection(years: list[int], all_years: list[int]) -> str:
     if len(years) <= 8:
         return "lata " + ", ".join(str(year) for year in years)
     return f"wybrane lata: {len(years)} roczników ({years[0]}-{years[-1]})"
+
+
+def empty_known_range_cells() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=["scientific_name", "cell_id", "center_latitude", "center_longitude", "source"]
+    )
+
+
+def pick_first_column(frame: pd.DataFrame, candidates: list[str]) -> str | None:
+    columns = {column.lower(): column for column in frame.columns}
+    for candidate in candidates:
+        if candidate.lower() in columns:
+            return columns[candidate.lower()]
+    return None
+
+
+@st.cache_data(show_spinner=False)
+def load_known_range_cells(scientific_name: str) -> pd.DataFrame:
+    if not KNOWN_RANGE_CELLS_PATH.exists():
+        return empty_known_range_cells()
+
+    frame = pd.read_csv(KNOWN_RANGE_CELLS_PATH)
+    if frame.empty:
+        return empty_known_range_cells()
+
+    species_column = pick_first_column(frame, ["scientific_name", "species", "taxon", "sci_name", "binomial"])
+    latitude_column = pick_first_column(frame, ["center_latitude", "latitude", "lat", "decimal_latitude"])
+    longitude_column = pick_first_column(frame, ["center_longitude", "longitude", "lon", "lng", "decimal_longitude"])
+    cell_column = pick_first_column(frame, ["cell_id", "square_id", "square", "utm_square", "grid_cell_id"])
+    source_column = pick_first_column(frame, ["source", "data_source"])
+
+    if latitude_column is None or longitude_column is None:
+        return empty_known_range_cells()
+
+    normalized = pd.DataFrame(
+        {
+            "scientific_name": frame[species_column] if species_column else scientific_name,
+            "cell_id": frame[cell_column] if cell_column else "",
+            "center_latitude": pd.to_numeric(frame[latitude_column], errors="coerce"),
+            "center_longitude": pd.to_numeric(frame[longitude_column], errors="coerce"),
+            "source": frame[source_column] if source_column else "EBBA2 50-km occurrence",
+        }
+    )
+    normalized["scientific_name"] = normalized["scientific_name"].astype(str).str.strip()
+    normalized = normalized[normalized["scientific_name"] == scientific_name].copy()
+    normalized = normalized.dropna(subset=["center_latitude", "center_longitude"])
+    return normalized.reset_index(drop=True)
+
+
+def haversine_distance_km(
+    latitude: float,
+    longitude: float,
+    candidate_latitudes: np.ndarray,
+    candidate_longitudes: np.ndarray,
+) -> np.ndarray:
+    earth_radius_km = 6371.0088
+    lat1 = np.radians(latitude)
+    lon1 = np.radians(longitude)
+    lat2 = np.radians(candidate_latitudes)
+    lon2 = np.radians(candidate_longitudes)
+    delta_lat = lat2 - lat1
+    delta_lon = lon2 - lon1
+    a = np.sin(delta_lat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(delta_lon / 2) ** 2
+    return earth_radius_km * 2 * np.arcsin(np.sqrt(a))
+
+
+def classify_points_against_known_range(
+    points: pd.DataFrame,
+    known_range_cells: pd.DataFrame,
+    radius_km: float = KNOWN_RANGE_MATCH_RADIUS_KM,
+) -> pd.DataFrame:
+    classified = points.copy()
+    classified["known_range_match"] = False
+    classified["nearest_known_range_km"] = pd.NA
+    classified["nearest_known_range_cell"] = pd.NA
+
+    if classified.empty or known_range_cells.empty:
+        return classified
+
+    bin_size = 1.0
+    spatial_index: dict[tuple[int, int], list[tuple[float, float, str]]] = {}
+    for row in known_range_cells.itertuples(index=False):
+        lat_bin = int(np.floor(float(row.center_latitude) / bin_size))
+        lon_bin = int(np.floor(float(row.center_longitude) / bin_size))
+        spatial_index.setdefault((lat_bin, lon_bin), []).append(
+            (float(row.center_latitude), float(row.center_longitude), str(row.cell_id))
+        )
+
+    matches: list[bool] = []
+    distances: list[float | None] = []
+    nearest_cells: list[str | None] = []
+
+    for point in classified.itertuples(index=False):
+        latitude = float(point.decimal_latitude)
+        longitude = float(point.decimal_longitude)
+        lat_bin = int(np.floor(latitude / bin_size))
+        lon_bin = int(np.floor(longitude / bin_size))
+        candidates: list[tuple[float, float, str]] = []
+        for lat_offset in range(-1, 2):
+            for lon_offset in range(-2, 3):
+                candidates.extend(spatial_index.get((lat_bin + lat_offset, lon_bin + lon_offset), []))
+
+        if not candidates:
+            matches.append(False)
+            distances.append(None)
+            nearest_cells.append(None)
+            continue
+
+        candidate_latitudes = np.array([candidate[0] for candidate in candidates], dtype=float)
+        candidate_longitudes = np.array([candidate[1] for candidate in candidates], dtype=float)
+        candidate_distances = haversine_distance_km(latitude, longitude, candidate_latitudes, candidate_longitudes)
+        nearest_index = int(candidate_distances.argmin())
+        nearest_distance = float(candidate_distances[nearest_index])
+        matches.append(nearest_distance <= radius_km)
+        distances.append(nearest_distance)
+        nearest_cells.append(candidates[nearest_index][2])
+
+    classified["known_range_match"] = matches
+    classified["nearest_known_range_km"] = distances
+    classified["nearest_known_range_cell"] = nearest_cells
+    return classified
 
 
 def translate_trend_classification(value: str | None) -> str:
@@ -1206,9 +1329,9 @@ def build_observation_map_figure(points: pd.DataFrame, species, years_label: str
         lataxis_range=[34, 72],
         lonaxis_range=[-25, 45],
         showland=True,
-        landcolor="rgba(12, 31, 49, 0.96)",
+        landcolor="rgba(24, 27, 33, 0.96)",
         showocean=True,
-        oceancolor="rgba(3, 10, 20, 0.98)",
+        oceancolor="rgba(11, 12, 15, 0.98)",
         showcountries=True,
         countrycolor="rgba(143, 211, 255, 0.26)",
         coastlinecolor="rgba(221, 242, 255, 0.28)",
@@ -1224,6 +1347,100 @@ def build_observation_map_figure(points: pd.DataFrame, species, years_label: str
         plot_bgcolor=PLOT_BG,
         font={"color": TEXT_BLUE},
         title_font={"color": SECONDARY_BLUE},
+        height=620,
+        margin={"l": 0, "r": 0, "t": 56, "b": 0},
+    )
+    return figure
+
+
+def build_known_range_comparison_figure(
+    points: pd.DataFrame,
+    known_range_cells: pd.DataFrame,
+    species,
+    years_label: str,
+) -> go.Figure:
+    figure = go.Figure()
+
+    if not known_range_cells.empty:
+        figure.add_trace(
+            go.Scattergeo(
+                lon=known_range_cells["center_longitude"],
+                lat=known_range_cells["center_latitude"],
+                mode="markers",
+                marker={
+                    "size": 9,
+                    "opacity": 0.34,
+                    "color": PRIMARY_BLUE,
+                    "line": {"width": 0},
+                },
+                text=known_range_cells["cell_id"].fillna("").astype(str),
+                name="Znany zasięg EBBA2",
+                hovertemplate="Komórka EBBA2: %{text}<br>Szerokość: %{lat:.2f}<br>Długość: %{lon:.2f}<extra></extra>",
+            )
+        )
+
+    if not points.empty:
+        inside_points = points[points["known_range_match"]].copy()
+        outside_points = points[~points["known_range_match"]].copy()
+
+        for display_points, name, color, opacity in (
+            (outside_points, "Punkty poza znanym zasięgiem", "#A7B0BA", 0.72),
+            (inside_points, "Punkty w znanym zasięgu", ACCENT_BLUE, 0.78),
+        ):
+            if display_points.empty:
+                continue
+            hover_data = display_points[
+                ["year", "country_code", "month", "nearest_known_range_km", "nearest_known_range_cell"]
+            ].fillna("").astype(str).to_numpy()
+            figure.add_trace(
+                go.Scattergeo(
+                    lon=display_points["decimal_longitude"],
+                    lat=display_points["decimal_latitude"],
+                    mode="markers",
+                    customdata=hover_data,
+                    marker={
+                        "size": 4,
+                        "opacity": opacity,
+                        "color": color,
+                        "line": {"width": 0},
+                    },
+                    hovertemplate=(
+                        "Rok: %{customdata[0]}<br>"
+                        "Kraj: %{customdata[1]}<br>"
+                        "Miesiąc: %{customdata[2]}<br>"
+                        "Najbliższa komórka EBBA2: %{customdata[4]}<br>"
+                        "Odległość do komórki: %{customdata[3]} km<br>"
+                        "Szerokość: %{lat:.2f}<br>"
+                        "Długość: %{lon:.2f}<extra></extra>"
+                    ),
+                    name=name,
+                )
+            )
+
+    figure.update_geos(
+        projection_type="natural earth",
+        lataxis_range=[34, 72],
+        lonaxis_range=[-25, 45],
+        showland=True,
+        landcolor="rgba(24, 27, 33, 0.96)",
+        showocean=True,
+        oceancolor="rgba(11, 12, 15, 0.98)",
+        showcountries=True,
+        countrycolor="rgba(143, 211, 255, 0.24)",
+        coastlinecolor="rgba(221, 242, 255, 0.26)",
+        showlakes=True,
+        lakecolor="rgba(14, 16, 20, 0.94)",
+        bgcolor="rgba(0,0,0,0)",
+        showframe=False,
+    )
+    figure.update_layout(
+        title=f"Obserwacje GBIF vs znany zasięg: {species.polish_name}, {years_label}",
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor=PLOT_BG,
+        font={"color": TEXT_BLUE},
+        title_font={"color": SECONDARY_BLUE},
+        legend_title="Warstwa",
         height=620,
         margin={"l": 0, "r": 0, "t": 56, "b": 0},
     )
@@ -1515,6 +1732,7 @@ def render_science_context() -> None:
 
         - [EEA: Common bird index in Europe](https://www.eea.europa.eu/en/analysis/indicators/common-bird-index-in-europe)
         - [EEA: Climate change impact indicator for European birds](https://www.eea.europa.eu/en/analysis/maps-and-charts/climate-change-impact-indicator-for-european-birds)
+        - [EBBA2: European Breeding Bird Atlas 2](https://ebba2.info/faq/)
         - [BirdLife DataZone: Climate change](https://datazone.birdlife.org/topics/climate-change)
         - [Nature Communications 2023: Local colonisations and extinctions of European birds are poorly explained by changes in climate suitability](https://www.nature.com/articles/s41467-023-39093-1)
         """
@@ -1716,6 +1934,7 @@ def render_chart_insights(chart_key: str, frame: pd.DataFrame) -> None:
 def render_known_range_comparison(species, selected_years: list[int], all_years: list[int]) -> None:
     years_label = format_year_selection(selected_years, all_years)
     year_points = load_occurrence_points(species.scientific_name, tuple(selected_years))
+    known_range_cells = load_known_range_cells(species.scientific_name)
     records_count = len(year_points)
     years_count = year_points["year"].nunique() if not year_points.empty and "year" in year_points.columns else 0
     countries_count = (
@@ -1725,45 +1944,103 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     )
     records_label = f"{records_count:,}".replace(",", " ")
 
+    if known_range_cells.empty:
+        st.markdown(
+            f"""
+            <div class="comparison-panel">
+                <div class="comparison-kicker">Porównanie zasięgu</div>
+                <div class="comparison-title">Brakuje warstwy referencyjnej dla: {escape(species.polish_name)}</div>
+                <p>
+                    Dla wyboru: <strong>{escape(years_label)}</strong> mamy punkty obserwacji GBIF,
+                    ale w repozytorium nie ma jeszcze komórek zasięgu EBBA2 dla tego gatunku.
+                    Dodaj plik <strong>data/reference/known_range_cells.csv</strong> z kolumnami:
+                    <strong>scientific_name</strong>, <strong>cell_id</strong>,
+                    <strong>center_latitude</strong>, <strong>center_longitude</strong>, <strong>source</strong>.
+                </p>
+                <p>
+                    Oficjalnym źródłem do tego porównania jest EBBA2: 50-km occurrence maps pokazują obecność
+                    gatunku jako lęgowego w komórkach atlasowych. Po dodaniu tych danych dashboard automatycznie
+                    policzy punkty GBIF znajdujące się w znanym zasięgu i poza nim.
+                </p>
+                <div class="comparison-grid">
+                    <div class="comparison-stat">
+                        <div class="comparison-stat-label">Punkty GBIF w wybranych latach</div>
+                        <div class="comparison-stat-value">{records_label}</div>
+                    </div>
+                    <div class="comparison-stat">
+                        <div class="comparison-stat-label">Lata z punktami GBIF</div>
+                        <div class="comparison-stat-value">{years_count}</div>
+                    </div>
+                    <div class="comparison-stat">
+                        <div class="comparison-stat-label">Kraje w punktach GBIF</div>
+                        <div class="comparison-stat-value">{countries_count}</div>
+                    </div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        render_insight_grid(
+            "Punkty GBIF pokazują miejsca zgłoszonych obserwacji, a nie kompletny zasięg biologiczny gatunku.",
+            "Porównanie jest przygotowane technicznie, ale wymaga dodania referencyjnej siatki EBBA2 do pliku known_range_cells.csv.",
+            "Po dodaniu komórek EBBA2 dashboard pokaże realny udział punktów obserwacji wewnątrz i poza znanym zasięgiem lęgowym.",
+        )
+        return
+
+    classified_points = classify_points_against_known_range(year_points, known_range_cells)
+    matched_count = int(classified_points["known_range_match"].sum()) if not classified_points.empty else 0
+    outside_count = records_count - matched_count
+    matched_pct = (matched_count / records_count * 100) if records_count else 0
+    outside_pct = (outside_count / records_count * 100) if records_count else 0
+    range_cells_count = len(known_range_cells)
+    matched_label = f"{matched_count:,}".replace(",", " ")
+    outside_label = f"{outside_count:,}".replace(",", " ")
+
     st.markdown(
         f"""
         <div class="comparison-panel">
             <div class="comparison-kicker">Porównanie zasięgu</div>
             <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
             <p>
-                Dla wyboru: <strong>{escape(years_label)}</strong> mamy punkty obserwacji GBIF, ale w projekcie
-                nie ma jeszcze niezależnej warstwy referencyjnej z faktycznie znanym zasięgiem gatunku.
-                Dlatego ten widok nie wylicza procentu punktów wewnątrz/poza zasięgiem, żeby nie mieszać
-                obserwacji zgłoszonych przez użytkowników z potwierdzonym zasięgiem występowania.
+                Dla wyboru: <strong>{escape(years_label)}</strong> porównuję punkty obserwacji GBIF z komórkami
+                referencyjnymi zasięgu lęgowego. Punkt uznaję za zgodny ze znanym zasięgiem, jeśli znajduje się
+                maksymalnie {format_decimal(KNOWN_RANGE_MATCH_RADIUS_KM, 0)} km od środka zajętej komórki EBBA2.
             </p>
             <p>
-                Żeby wykonać właściwe porównanie, trzeba dodać osobny zbiór referencyjny, np. siatkę atlasową
-                EBBA2 albo poligon zasięgu BirdLife/IUCN. Wtedy można sprawdzić, ile punktów GBIF wpada
-                w znany zasięg, ile leży poza nim i gdzie pojawiają się rozbieżności.
+                To nadal jest porównanie przybliżone, bo EBBA2 pracuje na siatce 50 km, a GBIF zawiera punkty
+                zgłoszonych obserwacji. Wynik jest jednak oparty na niezależnym źródle atlasowym, a nie na samych
+                punktach GBIF.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Punkty GBIF w wybranych latach</div>
-                    <div class="comparison-stat-value">{records_label}</div>
+                    <div class="comparison-stat-label">Punkty w znanym zasięgu</div>
+                    <div class="comparison-stat-value">{matched_label} ({format_decimal(matched_pct, 1)}%)</div>
                 </div>
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Lata z punktami GBIF</div>
-                    <div class="comparison-stat-value">{years_count}</div>
+                    <div class="comparison-stat-label">Punkty poza znanym zasięgiem</div>
+                    <div class="comparison-stat-value">{outside_label} ({format_decimal(outside_pct, 1)}%)</div>
                 </div>
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Kraje w punktach GBIF</div>
-                    <div class="comparison-stat-value">{countries_count}</div>
+                    <div class="comparison-stat-label">Komórki zasięgu referencyjnego</div>
+                    <div class="comparison-stat-value">{range_cells_count}</div>
                 </div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    st.plotly_chart(
+        build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
+        width="stretch",
+    )
 
     render_insight_grid(
-        "Punkty GBIF pokazują miejsca zgłoszonych obserwacji, a nie kompletny zasięg biologiczny gatunku.",
-        "W obecnych danych brakuje niezależnego atlasu lub poligonu zasięgu, więc nie da się jeszcze policzyć zgodności obserwacji z faktycznym zasięgiem.",
-        "Najlepszy kolejny krok to dodanie danych referencyjnych z atlasu lub zasięgu gatunku i porównanie ich z punktami GBIF na wspólnej siatce przestrzennej.",
+        "Komórki EBBA2 oznaczają znany zasięg lęgowy w siatce 50 km, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
+        (
+            f"W wybranych latach {format_decimal(matched_pct, 1)}% punktów GBIF leży w pobliżu komórek znanego zasięgu, "
+            f"a {format_decimal(outside_pct, 1)}% poza nimi."
+        ),
+        "Punkty poza zasięgiem warto interpretować ostrożnie: mogą oznaczać migrację, obserwacje poza sezonem lęgowym, błąd geolokalizacji albo realną rozbieżność z atlasem.",
     )
 
 
