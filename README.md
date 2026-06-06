@@ -5,7 +5,7 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
 1. `PECBMS`, czyli Europejski Monitoring Ptaków, do analizy zmian populacji w Europie.
 2. `GBIF`, czyli globalną bazę obserwacji organizmów, do analizy zmian zasięgu obserwacji.
 3. `Open-Meteo` jako publiczny interfejs do historycznych danych klimatycznych.
-4. `EBBA2`, czyli Europejski Atlas Ptaków Lęgowych, jako referencyjna siatka znanego zasięgu lęgowego.
+4. `EBBA1` i `EBBA2`, czyli Europejskie Atlasy Ptaków Lęgowych, jako rzeczywiste referencyjne warstwy występowania lęgowego.
 
 ## Proponowane gatunki
 
@@ -33,7 +33,8 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
   - dokumentacja: [GBIF Occurrence API](https://techdocs.gbif.org/en/openapi/v1/occurrence)
 - Open-Meteo
   - dokumentacja: [Historical Weather / Historical Forecast docs](https://open-meteo.com/en/docs/historical-forecast-api)
-- EBBA2
+- EBBA1 i EBBA2
+  - oficjalne mapy występowania: [European Breeding Bird Atlas maps](https://ebba2.info/maps/)
   - opis i FAQ: [European Breeding Bird Atlas 2](https://ebba2.info/faq/)
 
 ## Dobra praktyka metodologiczna
@@ -55,7 +56,9 @@ Projekt został przygotowany jako interaktywny dashboard w Pythonie z wykorzysta
 - `src/climate_birds/processing.py` - agregacja i łączenie danych
 - `src/climate_birds/statistics.py` - statystyki i testy
 - `data/processed/occurrence_map_points.csv` - przetworzone punkty GBIF używane przez mapę obserwacji
-- `data/reference/known_range_cells.csv` - referencyjne komórki zasięgu z granicami komórek używanymi do porównania punkt-w-komórce; obecnie przybliżona siatka 50-km-ish, możliwa do zastąpienia oryginalnym EBBA2 50-km occurrence data
+- `data/reference/ebba_grid_50km.geojson` - rzeczywiste poligony oficjalnej siatki EBBA 50 km
+- `data/reference/ebba_occurrence_50km.csv` - oficjalne komórki występowania gatunków w EBBA1 i EBBA2
+- `scripts/build_ebba_reference.py` - pobieranie i przygotowanie warstw referencyjnych EBBA
 
 ## Jak uruchomić projekt lokalnie
 
@@ -71,6 +74,7 @@ pip install -r requirements.txt
 
 ```powershell
 python scripts/build_dataset.py
+python scripts/build_ebba_reference.py
 ```
 
 5. Uruchom dashboard:
@@ -83,6 +87,6 @@ python -m streamlit run app/dashboard.py
 
 - dane `GBIF` są wrażliwe na wysiłek obserwacyjny,
 - mapa pokazuje wszystkie punkty zapisane w używanym zbiorze GBIF dla wybranych lat,
-- porównanie zasięgu wykorzystuje przybliżoną siatkę referencyjną 50-km-ish, więc jest demonstracją zgodności przestrzennej, a nie oceną punkt w poligonie w wysokiej rozdzielczości,
+- EBBA przedstawia okresy atlasowe, a nie coroczny zasięg; obserwacje są porównywane z najbliższym okresem EBBA1 lub EBBA2,
 - indeks klimatu dla Europy jest tu budowany jako agregat dla reprezentatywnych punktów,
 - projekt pokazuje związek statystyczny, a nie twardą zależność przyczynową.

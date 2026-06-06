@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from html import escape
 from pathlib import Path
@@ -83,9 +84,9 @@ CHART_OPTIONS = {
 }
 
 MAP_POINTS_PATH = PROCESSED_DIR / "occurrence_map_points.csv"
-KNOWN_RANGE_CELLS_PATH = DATA_DIR / "reference" / "known_range_cells.csv"
-KNOWN_RANGE_CELL_LAT_SPAN = 0.5
-KNOWN_RANGE_CELL_LON_SPAN = 0.75
+EBBA_GRID_PATH = DATA_DIR / "reference" / "ebba_grid_50km.geojson"
+EBBA_OCCURRENCE_PATH = DATA_DIR / "reference" / "ebba_occurrence_50km.csv"
+EBBA_ATLAS_COLORS = {"ebba1": ACCENT_BLUE, "ebba2": PRIMARY_BLUE}
 OCCURRENCE_POINT_COLUMNS = [
     "gbif_id",
     "decimal_latitude",
@@ -975,80 +976,158 @@ def empty_known_range_cells() -> pd.DataFrame:
         columns=[
             "scientific_name",
             "cell_id",
-            "center_latitude",
-            "center_longitude",
+            "atlas_code",
+            "atlas_name",
+            "period_label",
+            "period_start_year",
+            "period_end_year",
+            "reference_year",
+            "geometry",
             "south_latitude",
             "north_latitude",
             "west_longitude",
             "east_longitude",
             "source",
+            "source_url",
         ]
     )
 
 
-def pick_first_column(frame: pd.DataFrame, candidates: list[str]) -> str | None:
-    columns = {column.lower(): column for column in frame.columns}
-    for candidate in candidates:
-        if candidate.lower() in columns:
-            return columns[candidate.lower()]
-    return None
+def iter_geometry_coordinates(geometry: dict):
+    geometry_type = geometry.get("type")
+    coordinates = geometry.get("coordinates", [])
+    polygons = [coordinates] if geometry_type == "Polygon" else coordinates
+    for polygon in polygons:
+        for ring in polygon:
+            for longitude, latitude in ring:
+                yield float(longitude), float(latitude)
 
 
 @st.cache_data(show_spinner=False)
-def load_known_range_cells(scientific_name: str) -> pd.DataFrame:
-    if not KNOWN_RANGE_CELLS_PATH.exists():
+def load_ebba_grid_cells() -> pd.DataFrame:
+    if not EBBA_GRID_PATH.exists():
         return empty_known_range_cells()
 
-    frame = pd.read_csv(KNOWN_RANGE_CELLS_PATH)
-    if frame.empty:
+    collection = json.loads(EBBA_GRID_PATH.read_text(encoding="utf-8"))
+    rows = []
+    for feature in collection.get("features", []):
+        cell_id = str(feature.get("properties", {}).get("cell_id", feature.get("id", ""))).strip()
+        geometry = feature.get("geometry")
+        if not cell_id or not geometry:
+            continue
+        coordinates = list(iter_geometry_coordinates(geometry))
+        if not coordinates:
+            continue
+        longitudes = [coordinate[0] for coordinate in coordinates]
+        latitudes = [coordinate[1] for coordinate in coordinates]
+        rows.append(
+            {
+                "cell_id": cell_id,
+                "geometry": geometry,
+                "south_latitude": min(latitudes),
+                "north_latitude": max(latitudes),
+                "west_longitude": min(longitudes),
+                "east_longitude": max(longitudes),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+@st.cache_data(show_spinner=False)
+def load_known_range_cells(
+    scientific_name: str,
+    reference_years: tuple[int, ...] = (),
+) -> pd.DataFrame:
+    if not EBBA_OCCURRENCE_PATH.exists() or not EBBA_GRID_PATH.exists():
         return empty_known_range_cells()
 
-    species_column = pick_first_column(frame, ["scientific_name", "species", "taxon", "sci_name", "binomial"])
-    latitude_column = pick_first_column(frame, ["center_latitude", "latitude", "lat", "decimal_latitude"])
-    longitude_column = pick_first_column(frame, ["center_longitude", "longitude", "lon", "lng", "decimal_longitude"])
-    south_column = pick_first_column(frame, ["south_latitude", "min_latitude", "min_lat", "south", "ymin"])
-    north_column = pick_first_column(frame, ["north_latitude", "max_latitude", "max_lat", "north", "ymax"])
-    west_column = pick_first_column(frame, ["west_longitude", "min_longitude", "min_lon", "west", "xmin"])
-    east_column = pick_first_column(frame, ["east_longitude", "max_longitude", "max_lon", "east", "xmax"])
-    cell_column = pick_first_column(frame, ["cell_id", "square_id", "square", "utm_square", "grid_cell_id"])
-    source_column = pick_first_column(frame, ["source", "data_source"])
-
-    if latitude_column is None or longitude_column is None:
+    occurrence = pd.read_csv(EBBA_OCCURRENCE_PATH)
+    occurrence = occurrence[
+        occurrence["scientific_name"].astype(str).str.strip() == scientific_name
+    ].copy()
+    if occurrence.empty:
         return empty_known_range_cells()
 
-    normalized = pd.DataFrame(
-        {
-            "scientific_name": frame[species_column] if species_column else scientific_name,
-            "cell_id": frame[cell_column] if cell_column else "",
-            "center_latitude": pd.to_numeric(frame[latitude_column], errors="coerce"),
-            "center_longitude": pd.to_numeric(frame[longitude_column], errors="coerce"),
-            "source": frame[source_column] if source_column else "EBBA2 50-km occurrence",
-        }
+    occurrence["reference_year"] = pd.to_numeric(occurrence["reference_year"], errors="coerce")
+    if reference_years:
+        occurrence = occurrence[occurrence["reference_year"].isin(reference_years)].copy()
+
+    return occurrence.merge(load_ebba_grid_cells(), on="cell_id", how="inner").reset_index(drop=True)
+
+
+def nearest_reference_year(
+    year: int,
+    reference_periods: list[tuple[int, int, int]],
+) -> int:
+    def distance_to_period(period: tuple[int, int, int]) -> tuple[int, int]:
+        reference_year, start_year, end_year = period
+        if start_year <= year <= end_year:
+            distance = 0
+        else:
+            distance = min(abs(year - start_year), abs(year - end_year))
+        return distance, -reference_year
+
+    return min(reference_periods, key=distance_to_period)[0]
+
+
+def point_on_segment(
+    longitude: float,
+    latitude: float,
+    start: list[float],
+    end: list[float],
+    tolerance: float = 1e-9,
+) -> bool:
+    start_longitude, start_latitude = start
+    end_longitude, end_latitude = end
+    cross_product = (
+        (latitude - start_latitude) * (end_longitude - start_longitude)
+        - (longitude - start_longitude) * (end_latitude - start_latitude)
     )
-    if south_column and north_column and west_column and east_column:
-        normalized["south_latitude"] = pd.to_numeric(frame[south_column], errors="coerce")
-        normalized["north_latitude"] = pd.to_numeric(frame[north_column], errors="coerce")
-        normalized["west_longitude"] = pd.to_numeric(frame[west_column], errors="coerce")
-        normalized["east_longitude"] = pd.to_numeric(frame[east_column], errors="coerce")
-    else:
-        normalized["south_latitude"] = normalized["center_latitude"] - KNOWN_RANGE_CELL_LAT_SPAN / 2
-        normalized["north_latitude"] = normalized["center_latitude"] + KNOWN_RANGE_CELL_LAT_SPAN / 2
-        normalized["west_longitude"] = normalized["center_longitude"] - KNOWN_RANGE_CELL_LON_SPAN / 2
-        normalized["east_longitude"] = normalized["center_longitude"] + KNOWN_RANGE_CELL_LON_SPAN / 2
-
-    normalized["scientific_name"] = normalized["scientific_name"].astype(str).str.strip()
-    normalized = normalized[normalized["scientific_name"] == scientific_name].copy()
-    normalized = normalized.dropna(
-        subset=[
-            "center_latitude",
-            "center_longitude",
-            "south_latitude",
-            "north_latitude",
-            "west_longitude",
-            "east_longitude",
-        ]
+    if abs(cross_product) > tolerance:
+        return False
+    return (
+        min(start_longitude, end_longitude) - tolerance
+        <= longitude
+        <= max(start_longitude, end_longitude) + tolerance
+        and min(start_latitude, end_latitude) - tolerance
+        <= latitude
+        <= max(start_latitude, end_latitude) + tolerance
     )
-    return normalized.reset_index(drop=True)
+
+
+def point_in_ring(longitude: float, latitude: float, ring: list[list[float]]) -> bool:
+    inside = False
+    previous = ring[-1]
+    for current in ring:
+        if point_on_segment(longitude, latitude, previous, current):
+            return True
+        current_longitude, current_latitude = current
+        previous_longitude, previous_latitude = previous
+        intersects = (current_latitude > latitude) != (previous_latitude > latitude)
+        if intersects:
+            boundary_longitude = (
+                (previous_longitude - current_longitude)
+                * (latitude - current_latitude)
+                / (previous_latitude - current_latitude)
+                + current_longitude
+            )
+            if longitude < boundary_longitude:
+                inside = not inside
+        previous = current
+    return inside
+
+
+def point_in_geometry(longitude: float, latitude: float, geometry: dict) -> bool:
+    geometry_type = geometry.get("type")
+    coordinates = geometry.get("coordinates", [])
+    polygons = [coordinates] if geometry_type == "Polygon" else coordinates
+    for polygon in polygons:
+        if not polygon or not point_in_ring(longitude, latitude, polygon[0]):
+            continue
+        if not any(point_in_ring(longitude, latitude, hole) for hole in polygon[1:]):
+            return True
+    return False
 
 
 def classify_points_against_known_range(
@@ -1058,12 +1137,13 @@ def classify_points_against_known_range(
     classified = points.copy()
     classified["known_range_match"] = False
     classified["matched_known_range_cell"] = pd.NA
+    classified["matched_reference_period"] = pd.NA
 
     if classified.empty or known_range_cells.empty:
         return classified
 
     bin_size = 1.0
-    spatial_index: dict[tuple[int, int], list[tuple[float, float, float, float, str]]] = {}
+    spatial_index: dict[tuple[int, int], list[tuple]] = {}
     for row in known_range_cells.itertuples(index=False):
         south = float(row.south_latitude)
         north = float(row.north_latitude)
@@ -1071,33 +1151,49 @@ def classify_points_against_known_range(
         east = float(row.east_longitude)
         lat_bins = range(int(np.floor(south / bin_size)), int(np.floor(north / bin_size)) + 1)
         lon_bins = range(int(np.floor(west / bin_size)), int(np.floor(east / bin_size)) + 1)
-        cell = (south, north, west, east, str(row.cell_id))
+        cell = (
+            south,
+            north,
+            west,
+            east,
+            str(row.cell_id),
+            int(row.reference_year),
+            str(row.period_label),
+            row.geometry,
+        )
         for lat_bin in lat_bins:
             for lon_bin in lon_bins:
                 spatial_index.setdefault((lat_bin, lon_bin), []).append(cell)
 
     matches: list[bool] = []
     matched_cells: list[str | None] = []
+    matched_periods: list[str | None] = []
 
     for point in classified.itertuples(index=False):
         latitude = float(point.decimal_latitude)
         longitude = float(point.decimal_longitude)
+        reference_year = int(point.reference_year)
         lat_bin = int(np.floor(latitude / bin_size))
         lon_bin = int(np.floor(longitude / bin_size))
         candidates = spatial_index.get((lat_bin, lon_bin), [])
-        matched_cell = next(
+        match = next(
             (
-                cell_id
-                for south, north, west, east, cell_id in candidates
-                if south <= latitude <= north and west <= longitude <= east
+                (cell_id, period_label)
+                for south, north, west, east, cell_id, cell_reference_year, period_label, geometry in candidates
+                if cell_reference_year == reference_year
+                and south <= latitude <= north
+                and west <= longitude <= east
+                and point_in_geometry(longitude, latitude, geometry)
             ),
             None,
         )
-        matches.append(matched_cell is not None)
-        matched_cells.append(matched_cell)
+        matches.append(match is not None)
+        matched_cells.append(match[0] if match else None)
+        matched_periods.append(match[1] if match else None)
 
     classified["known_range_match"] = matches
     classified["matched_known_range_cell"] = matched_cells
+    classified["matched_reference_period"] = matched_periods
     return classified
 
 
@@ -1107,46 +1203,57 @@ def load_known_range_comparison_data(
     years: tuple[int, ...],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     year_points = load_occurrence_points(scientific_name, years)
-    known_range_cells = load_known_range_cells(scientific_name)
+    all_known_range_cells = load_known_range_cells(scientific_name)
+    if all_known_range_cells.empty:
+        return classify_points_against_known_range(year_points, all_known_range_cells), all_known_range_cells
+
+    reference_periods = [
+        (int(row.reference_year), int(row.period_start_year), int(row.period_end_year))
+        for row in all_known_range_cells[
+            ["reference_year", "period_start_year", "period_end_year"]
+        ].drop_duplicates().itertuples(index=False)
+    ]
+    selected_reference_years = tuple(
+        sorted({nearest_reference_year(int(year), reference_periods) for year in years})
+    )
+    known_range_cells = all_known_range_cells[
+        all_known_range_cells["reference_year"].isin(selected_reference_years)
+    ].copy()
+
+    period_by_reference_year = (
+        known_range_cells[["reference_year", "period_label"]]
+        .drop_duplicates("reference_year")
+        .set_index("reference_year")["period_label"]
+        .to_dict()
+    )
+    if not year_points.empty:
+        year_points = year_points.copy()
+        year_points["reference_year"] = year_points["year"].map(
+            lambda year: nearest_reference_year(int(year), reference_periods)
+        )
+        year_points["reference_period_label"] = year_points["reference_year"].map(period_by_reference_year)
+
     classified_points = classify_points_against_known_range(year_points, known_range_cells)
     return classified_points, known_range_cells
 
 
-@st.cache_data(show_spinner=False)
 def build_known_range_geojson(known_range_cells: pd.DataFrame) -> dict:
     features = []
-    lat_half = KNOWN_RANGE_CELL_LAT_SPAN / 2
-    lon_half = KNOWN_RANGE_CELL_LON_SPAN / 2
 
     for row in known_range_cells.itertuples(index=False):
-        center_latitude = float(row.center_latitude)
-        center_longitude = float(row.center_longitude)
-        west = center_longitude - lon_half
-        east = center_longitude + lon_half
-        south = center_latitude - lat_half
-        north = center_latitude + lat_half
         cell_id = str(row.cell_id)
-        source = str(row.source)
+        feature_id = f"{row.atlas_code}|{cell_id}"
         features.append(
             {
                 "type": "Feature",
-                "id": cell_id,
+                "id": feature_id,
                 "properties": {
+                    "feature_id": feature_id,
                     "cell_id": cell_id,
-                    "source": source,
+                    "period_label": str(row.period_label),
+                    "source": str(row.source),
                 },
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [west, south],
-                            [east, south],
-                            [east, north],
-                            [west, north],
-                            [west, south],
-                        ]
-                    ],
-                },
+                "geometry": row.geometry,
             }
         )
 
@@ -1494,56 +1601,60 @@ def build_known_range_comparison_figure(
 ) -> go.Figure:
     figure = go.Figure()
     has_known_range = not known_range_cells.empty
-    range_source = (
-        str(known_range_cells["source"].dropna().iloc[0])
-        if has_known_range and "source" in known_range_cells.columns and not known_range_cells["source"].dropna().empty
-        else "warstwa referencyjna"
-    )
     display_frame = points.copy()
     if not display_frame.empty and "known_range_match" not in display_frame.columns:
         display_frame["known_range_match"] = False
-    for column in ("matched_known_range_cell",):
+    for column in ("matched_known_range_cell", "reference_period_label"):
         if not display_frame.empty and column not in display_frame.columns:
             display_frame[column] = pd.NA
 
     if has_known_range:
-        known_range_hover = known_range_cells[["cell_id", "source"]].fillna("").astype(str).to_numpy()
-        figure.add_trace(
-            go.Scattergeo(
-                lon=known_range_cells["center_longitude"],
-                lat=known_range_cells["center_latitude"],
-                mode="markers",
-                customdata=known_range_hover,
-                marker={
-                    "symbol": "square",
-                    "size": 9,
-                    "opacity": 0.18,
-                    "color": PRIMARY_BLUE,
-                    "line": {"width": 0.4, "color": "rgba(221, 242, 255, 0.20)"},
-                },
-                name="Kwadraty: komórki zasięgu referencyjnego",
-                hovertemplate=(
-                    "Komórka: %{customdata[0]}<br>"
-                    "Źródło: %{customdata[1]}<br>"
-                    "Warstwa zasięgu<br>"
-                    "Szerokość: %{lat:.2f}<br>"
-                    "Długość: %{lon:.2f}<extra></extra>"
-                ),
+        for atlas_code, atlas_cells in known_range_cells.groupby("atlas_code", sort=True):
+            period_label = str(atlas_cells["period_label"].iloc[0])
+            atlas_cells = atlas_cells.copy()
+            atlas_cells["feature_id"] = (
+                atlas_cells["atlas_code"].astype(str) + "|" + atlas_cells["cell_id"].astype(str)
             )
-        )
+            color = EBBA_ATLAS_COLORS.get(str(atlas_code), PRIMARY_BLUE)
+            layer_opacity = 0.18 if str(atlas_code) == "ebba1" else 0.25
+            range_hover = atlas_cells[["cell_id", "period_label", "source"]].fillna("").astype(str).to_numpy()
+            figure.add_trace(
+                go.Choropleth(
+                    geojson=build_known_range_geojson(atlas_cells),
+                    locations=atlas_cells["feature_id"],
+                    z=[1] * len(atlas_cells),
+                    featureidkey="properties.feature_id",
+                    customdata=range_hover,
+                    colorscale=[[0, color], [1, color]],
+                    zmin=0,
+                    zmax=1,
+                    showscale=False,
+                    showlegend=True,
+                    marker={
+                        "opacity": layer_opacity,
+                        "line": {"width": 0.35, "color": "rgba(221, 242, 255, 0.34)"},
+                    },
+                    name=f"Poligony zasięgu: {period_label}",
+                    hovertemplate=(
+                        "Komórka EBBA: %{customdata[0]}<br>"
+                        "Okres atlasowy: %{customdata[1]}<br>"
+                        "Źródło: %{customdata[2]}<extra></extra>"
+                    ),
+                )
+            )
 
     if not display_frame.empty:
         if has_known_range:
             point_layers = (
                 (
                     display_frame[~display_frame["known_range_match"]].copy(),
-                    "Punkty GBIF: poza komórkami zasięgu",
+                    "Punkty GBIF: poza zasięgiem najbliższego atlasu",
                     "#A7B0BA",
                     0.72,
                 ),
                 (
                     display_frame[display_frame["known_range_match"]].copy(),
-                    "Punkty GBIF: w komórkach zasięgu",
+                    "Punkty GBIF: w zasięgu najbliższego atlasu",
                     ACCENT_BLUE,
                     0.78,
                 ),
@@ -1557,7 +1668,7 @@ def build_known_range_comparison_figure(
             if display_points.empty:
                 continue
             hover_data = display_points[
-                ["year", "country_code", "month", "matched_known_range_cell"]
+                ["year", "country_code", "month", "reference_period_label", "matched_known_range_cell"]
             ].fillna("").astype(str).to_numpy()
             figure.add_trace(
                 go.Scattergeo(
@@ -1575,7 +1686,8 @@ def build_known_range_comparison_figure(
                         "Rok: %{customdata[0]}<br>"
                         "Kraj: %{customdata[1]}<br>"
                         "Miesiąc: %{customdata[2]}<br>"
-                        "Komórka zasięgu: %{customdata[3]}<br>"
+                        "Najbliższy okres atlasowy: %{customdata[3]}<br>"
+                        "Komórka zasięgu: %{customdata[4]}<br>"
                         "Szerokość: %{lat:.2f}<br>"
                         "Długość: %{lon:.2f}<extra></extra>"
                     ),
@@ -1610,7 +1722,7 @@ def build_known_range_comparison_figure(
         showframe=False,
     )
     figure.update_layout(
-        title=f"Obserwacje GBIF vs znany zasięg: {species.polish_name}, {years_label}",
+        title=f"Obserwacje GBIF vs zasięg EBBA: {species.polish_name}, {years_label}",
         template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor=PLOT_BG,
@@ -1744,12 +1856,12 @@ def render_sidebar_glossary() -> None:
             <strong>PECBMS</strong> - indeksy i trendy populacji ptaków w Europie.<br>
             <strong>GBIF</strong> - punkty obserwacji gatunków ze współrzędnymi.<br>
             <strong>Open-Meteo</strong> - historyczne dane temperatury i opadów.<br>
-            <strong>EBBA2 / zasięg</strong> - referencyjna siatka występowania lęgowego.<br><br>
+            <strong>EBBA1 i EBBA2</strong> - oficjalne komórki z możliwym, prawdopodobnym lub potwierdzonym występowaniem lęgowym.<br><br>
             <strong>Parametry analizy</strong><br>
             <strong>Miesiące lęgowe</strong> - kwiecień-lipiec.<br>
             <strong>Okres bazowy klimatu</strong> - 1991-2020.<br>
             <strong>Pola siatki</strong> - 1° x 1° dla metryk zasięgu obserwacji.<br>
-            <strong>Zgodność z zasięgiem</strong> - punkt wewnątrz granic komórki referencyjnej.<br>
+            <strong>Zgodność z zasięgiem</strong> - punkt wewnątrz rzeczywistego poligonu komórki najbliższego okresu EBBA.<br>
             <strong>Wartość p</strong> - informacja, czy wynik testu statystycznego jest istotny.<br>
             <strong>Uwaga</strong> - GBIF pokazuje obserwacje, a nie liczebność populacji.
         </div>
@@ -1961,9 +2073,8 @@ def render_chart_description(chart_key: str) -> None:
         ),
         "known_range": (
             "Co pokazuje to porównanie?",
-            "Ten widok sprawdza, czy w projekcie jest niezależny zasięg referencyjny gatunku, "
-            "z którym można porównać punkty obserwacji GBIF. Same punkty GBIF nie są takim zasięgiem, "
-            "bo zależą od aktywności obserwatorów."
+            "Widok porównuje punkty GBIF z oficjalnymi poligonami występowania EBBA1 i EBBA2. "
+            "Dla każdego roku obserwacji wybierany jest najbliższy dostępny okres atlasowy."
         ),
         "centroid": (
             "Co pokazuje ten wykres?",
@@ -2154,8 +2265,8 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
                 <div class="comparison-title">Brakuje warstwy referencyjnej dla: {escape(species.polish_name)}</div>
                 <p>
                     Mapa pokazuje punkty GBIF dla wyboru: <strong>{escape(years_label)}</strong>.
-                    Warstwa zasięgu pojawi się po dodaniu komórek referencyjnych do
-                    <strong>data/reference/known_range_cells.csv</strong>.
+                    Warstwa zasięgu pojawi się po zbudowaniu oficjalnych danych EBBA poleceniem
+                    <strong>python scripts/build_ebba_reference.py</strong>.
                 </p>
                 <div class="comparison-grid">
                     <div class="comparison-stat">
@@ -2177,25 +2288,28 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
         )
         render_insight_grid(
             "Punkty GBIF pokazują miejsca zgłoszonych obserwacji, a nie kompletny zasięg biologiczny gatunku.",
-            "Porównanie jest przygotowane technicznie, ale wymaga dodania referencyjnej siatki EBBA2 do pliku known_range_cells.csv.",
-            "Po dodaniu komórek EBBA2 dashboard pokaże realny udział punktów obserwacji wewnątrz i poza znanym zasięgiem lęgowym.",
+            "Porównanie wymaga lokalnych kopii oficjalnej siatki i danych występowania EBBA1 oraz EBBA2.",
+            "Po zbudowaniu danych dashboard porówna punkty z rzeczywistymi poligonami komórek atlasowych.",
         )
         return
 
-    range_source = (
-        str(known_range_cells["source"].dropna().iloc[0])
-        if "source" in known_range_cells.columns and not known_range_cells["source"].dropna().empty
-        else "warstwa referencyjna"
-    )
     matched_count = int(classified_points["known_range_match"].sum()) if not classified_points.empty else 0
     outside_count = records_count - matched_count
     matched_pct = (matched_count / records_count * 100) if records_count else 0
     outside_pct = (outside_count / records_count * 100) if records_count else 0
-    range_cells_count = len(known_range_cells)
+    range_cells_count = len(known_range_cells[["atlas_code", "cell_id"]].drop_duplicates())
     matched_label = format_count(matched_count)
     outside_label = format_count(outside_count)
     range_cells_label = format_count(range_cells_count)
     months_label = format_month_selection(classified_points)
+    reference_periods = (
+        known_range_cells[["reference_year", "period_label"]]
+        .drop_duplicates()
+        .sort_values("reference_year")["period_label"]
+        .astype(str)
+        .tolist()
+    )
+    reference_periods_label = ", ".join(reference_periods)
 
     st.plotly_chart(
         build_known_range_comparison_figure(classified_points, known_range_cells, species, years_label),
@@ -2205,24 +2319,25 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
         f"""
         <div class="comparison-panel">
             <div class="comparison-kicker">Porównanie zasięgu</div>
-            <div class="comparison-title">Obserwacje GBIF vs znany zasięg: {escape(species.polish_name)}</div>
+            <div class="comparison-title">Obserwacje GBIF vs zasięg EBBA: {escape(species.polish_name)}</div>
             <p>
                 Punkty pokazują pojedyncze obserwacje GBIF z wybranych lat; miesiące w tych punktach:
-                <strong>{escape(months_label)}</strong>. Kwadraty pokazują komórki znanego/przybliżonego
-                zasięgu lęgowego z warstwy: <strong>{escape(range_source)}</strong>.
+                <strong>{escape(months_label)}</strong>. Poligony pokazują oficjalne komórki występowania lęgowego
+                EBBA. Każdy punkt jest porównywany z najbliższym dostępnym okresem atlasowym:
+                <strong>{escape(reference_periods_label)}</strong>. Przy jednakowej odległości wybierany jest nowszy atlas.
             </p>
             <div class="comparison-grid">
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Punkty w znanym zasięgu</div>
+                    <div class="comparison-stat-label">Punkty zgodne z najbliższym atlasem</div>
                     <div class="comparison-stat-value">{matched_label} ({format_decimal(matched_pct, 1)}%)</div>
                 </div>
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Punkty poza znanym zasięgiem</div>
+                    <div class="comparison-stat-label">Punkty poza zasięgiem najbliższego atlasu</div>
                     <div class="comparison-stat-value">{outside_label} ({format_decimal(outside_pct, 1)}%)</div>
                 </div>
                 <div class="comparison-stat">
-                    <div class="comparison-stat-label">Liczba komórek zasięgu</div>
-                    <div class="comparison-stat-value">{range_cells_label} komórek</div>
+                    <div class="comparison-stat-label">Komórki użytych warstw EBBA</div>
+                    <div class="comparison-stat-value">{range_cells_label}</div>
                 </div>
             </div>
         </div>
@@ -2231,12 +2346,12 @@ def render_known_range_comparison(species, selected_years: list[int], all_years:
     )
 
     render_insight_grid(
-        "Komórki referencyjne oznaczają znany lub przybliżony zasięg lęgowy, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
+        "Poligony pochodzą z oficjalnych map występowania EBBA1 i EBBA2, a punkty GBIF pokazują pojedyncze zgłoszone obserwacje.",
         (
-            f"W wybranych latach {format_decimal(matched_pct, 1)}% punktów GBIF leży w komórkach znanego zasięgu, "
-            f"a {format_decimal(outside_pct, 1)}% poza nimi."
+            f"W wybranych latach {format_decimal(matched_pct, 1)}% punktów GBIF leży w zasięgu najbliższego okresu atlasowego, "
+            f"a {format_decimal(outside_pct, 1)}% poza tym zasięgiem."
         ),
-        "Punkty poza zasięgiem warto interpretować ostrożnie: mogą oznaczać migrację, obserwacje poza sezonem lęgowym, błąd geolokalizacji albo realną rozbieżność z atlasem.",
+        "Punkty poza zasięgiem warto interpretować ostrożnie: atlas przedstawia okres, a nie pojedynczy rok, a GBIF zależy także od wysiłku obserwatorów.",
     )
 
 
@@ -2382,7 +2497,7 @@ def main() -> None:
     st.title("Wpływ zmian klimatycznych na zasięg i populacje ptaków")
     st.caption(
         "Dashboard łączy dane Europejskiego Monitoringu Ptaków (PECBMS), obserwacje z bazy GBIF "
-        "oraz historyczne dane klimatyczne."
+        "historyczne dane klimatyczne oraz warstwy występowania EBBA1 i EBBA2."
     )
     inject_custom_styles()
     initialize_state()

@@ -1,16 +1,28 @@
-# Dane referencyjne zasięgu
+# Oficjalne dane referencyjne EBBA
 
-Plik `known_range_cells.csv` przechowuje komórki znanego zasięgu gatunków używane w widoku `Obserwacje vs zasięg`.
+Widok `Obserwacje vs zasięg` korzysta z rzeczywistych danych atlasowych:
 
-Oczekiwany format:
+- `ebba_grid_50km.geojson` zawiera oficjalne poligony komórek siatki EBBA 50 km;
+- `ebba_occurrence_50km.csv` wskazuje komórki, w których dany gatunek został zgłoszony jako możliwy, prawdopodobny lub potwierdzony gatunek lęgowy w EBBA1 lub EBBA2.
 
-```csv
-scientific_name,cell_id,center_latitude,center_longitude,south_latitude,north_latitude,west_longitude,east_longitude,source
-Ciconia ciconia,example-cell,52.0,21.0,51.75,52.25,20.625,21.375,EBBA2 50-km occurrence
+Dane są budowane poleceniem:
+
+```powershell
+python scripts/build_ebba_reference.py
 ```
 
-Obecny plik zawiera przybliżoną siatkę referencyjną 50-km-ish przygotowaną po to, żeby widok `Obserwacje vs zasięg` działał w dashboardzie bez dodatkowego logowania do zewnętrznego serwisu. Źródło w kolumnie `source` jest opisane jako przybliżenie, a nie oryginalny eksport atlasowy.
+Skrypt pobiera:
 
-Porównanie punktów z zasięgiem działa teraz po granicach komórek: punkt GBIF jest uznany za zgodny z zasięgiem tylko wtedy, gdy jego współrzędne mieszczą się między `south_latitude`, `north_latitude`, `west_longitude` i `east_longitude`.
+- oficjalną warstwę występowania z finalnego serwisu map EBBA2: `https://ebba2.info/maps/`;
+- geometrię siatki 50 km z serwisu mapowego EBBA: `https://mapviewer.ebba2.info/`.
 
-Rekomendowane źródło docelowe: EBBA2 50-km occurrence data. Według EBBA2 dane occurrence 50 km dla wszystkich gatunków i całego obszaru badania są open access w formacie CSV. Po pobraniu oryginalnych danych można zastąpić nimi ten plik, zachowując kolumny `scientific_name`, `cell_id`, `center_latitude`, `center_longitude`, granice komórek i `source`.
+## Przypisywanie okresu atlasowego
+
+EBBA nie dostarcza rocznej mapy zasięgu. Projekt wykorzystuje dwa dostępne okresy:
+
+- `EBBA1 (lata 80.)`, identyfikowany w danych rokiem 1985;
+- `EBBA2 (2013-2017)`, identyfikowany w danych rokiem 2015.
+
+Jeżeli rok punktu GBIF znajduje się wewnątrz okresu atlasowego, używany jest ten atlas. Dla pozostałych lat wybierany jest okres, którego najbliższa granica czasowa jest najbliższa rokowi obserwacji. Przy jednakowej odległości wybierany jest nowszy atlas.
+
+Punkt jest uznawany za zgodny z zasięgiem wyłącznie wtedy, gdy znajduje się wewnątrz rzeczywistego poligonu komórki występowania odpowiedniego atlasu.
