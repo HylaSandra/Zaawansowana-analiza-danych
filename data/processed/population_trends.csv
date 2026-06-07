@@ -1,4 +1,4 @@
-euring_code,scientific_name,trend_long_pct,trend_10y_pct,long_term_start_year,long_term_slope,long_term_se,long_term_classification,ten_year_start_year,ten_year_slope,ten_year_slope_se,ten_year_classification,habitat,graph_note,polish_name
-1340,Ciconia ciconia,81.45,-5.78430863492393,1980,1.016654726,0.003877079,Moderate increase (p<0.01),2015,1.006895484,0.004631005,Stable,farmland,,Bocian biały
-7240,Cuculus canorus,-42.47,-3.63484087102178,1980,0.987994546,0.001061491,Moderate decline (p<0.01),2015,0.996832089,0.002028056,Stable,other,,Kukułka
-9920,Hirundo rustica,-18.14,-20.5242718446602,1980,0.992079257,0.001626178,Moderate decline (p<0.01),2015,0.975333208,0.002529355,Moderate decline (p<0.01),farmland,,Jaskółka dymówka
+euring_code,scientific_name,trend_long_pct,trend_10y_pct,long_term_start_year,long_term_slope,long_term_se,long_term_classification,ten_year_start_year,ten_year_slope,ten_year_slope_se,ten_year_classification,habitat,graph_note
+1340,Ciconia ciconia,81.45,-5.78430863492393,1980,1.016654726,0.003877079,Moderate increase (p<0.01),2015,1.006895484,0.004631005,Stable,farmland,
+7240,Cuculus canorus,-42.47,-3.63484087102178,1980,0.987994546,0.001061491,Moderate decline (p<0.01),2015,0.996832089,0.002028056,Stable,other,
+9920,Hirundo rustica,-18.14,-20.5242718446602,1980,0.992079257,0.001626178,Moderate decline (p<0.01),2015,0.975333208,0.002529355,Moderate decline (p<0.01),farmland,
